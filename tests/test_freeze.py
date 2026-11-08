@@ -132,6 +132,21 @@ def test_cli_create_and_validate(tmp_path, capsys):
     assert out == "OK"
 
 
+def test_cli_create_default_config_records_actor_model_id(tmp_path, capsys, monkeypatch):
+    make_draft(tmp_path)
+    monkeypatch.setenv("ACTOR_MODEL_ID", "claude-haiku-4-5-20251001")
+
+    rc = freeze.main(["--repo-root", str(tmp_path), "create"])
+    assert rc == 0
+    freeze_id = capsys.readouterr().out.strip()
+
+    frozen_dir = tmp_path / "protocol" / "frozen" / freeze_id
+    record = json.loads((frozen_dir / "freeze.json").read_text(encoding="utf-8"))
+    assert record["config"]["model_ids"]["actor"] == "claude-haiku-4-5-20251001"
+    # The shared DEFAULT_CONFIG object itself must be untouched (no shallow-copy aliasing).
+    assert freeze.DEFAULT_CONFIG["model_ids"]["actor"] is None
+
+
 def test_cli_validate_reports_faults_and_nonzero_exit(tmp_path, capsys):
     make_draft(tmp_path)
     rc = freeze.main(["--repo-root", str(tmp_path), "validate", "F20260101-0000-deadbeef"])

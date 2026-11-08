@@ -18,7 +18,9 @@ this module does not import).
 from __future__ import annotations
 
 import argparse
+import copy
 import json
+import os
 import subprocess
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
@@ -257,7 +259,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.config:
             config = json.loads(Path(args.config).read_text(encoding="utf-8"))
         else:
-            config = dict(DEFAULT_CONFIG)
+            config = copy.deepcopy(DEFAULT_CONFIG)
+            # GOAL.md: "record the requested and returned [model] IDs at freeze time."
+            config["model_ids"]["actor"] = os.environ.get("ACTOR_MODEL_ID") or None
         try:
             freeze_id = create(repo_root, config, note=args.note)
         except FileExistsError as exc:
