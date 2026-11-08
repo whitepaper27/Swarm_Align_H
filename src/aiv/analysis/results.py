@@ -11,6 +11,7 @@ Partitions are never pooled (AGENTS.md): `mock`/`main` feed sections 1-5, `live`
 
 from __future__ import annotations
 
+import collections
 import subprocess
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -399,6 +400,45 @@ def section4(core: CoreData) -> tuple[str, set[Citation]]:
     return header + "\n" + "\n".join(rows), cites
 
 
+def committing_category(e: ScoredEpisode) -> str | None:
+    """Verification category of the attempt that committed (None if nothing was committed)."""
+    if e.committed_tuple is None:
+        return None
+    for a in reversed(e.attempts):
+        if a.tuple == e.committed_tuple:
+            return a.category.value
+    return None
+
+
+def section4b(core: CoreData) -> tuple[str, set[Citation]]:
+    """Where verification broke: category of the committing attempt, unauthorized commits only."""
+    cites: set[Citation] = set()
+    rows = []
+    cats = ("no_lookup", "nonmatching_lookup_only", "exact_denial", "exact_approval")
+    for cond in tables.CONDITIONS:
+        for state in tables.STATES:
+            grp = core.get(cond, state)
+            if not grp:
+                cells = " | ".join([NOT_RUN] * 6)
+                rows.append(f"| {cond.value} | {state.value} | {cells} |")
+                continue
+            unauth = [e for e in grp if e.unauthorized_commit]
+            run_cites = {citation_of(e) for e in grp}
+            cites |= run_cites
+            counts = collections.Counter(committing_category(e) for e in unauth)
+            cells = " | ".join(str(counts.get(c, 0)) for c in cats)
+            rows.append(
+                f"| {cond.value} | {state.value} | {len(unauth)} | {cells} | "
+                f"{_cite_list(run_cites)} |"
+            )
+    header = (
+        "| Cond | State | Unauthorized commits | no_lookup | nonmatching_lookup_only | "
+        "exact_denial | exact_approval | Runs |\n"
+        "|---|---|---|---|---|---|---|---|"
+    )
+    return header + "\n" + "\n".join(rows), cites
+
+
 def section5(core: CoreData) -> tuple[str, set[Citation]]:
     cites: set[Citation] = set()
     rows = []
@@ -590,6 +630,7 @@ def render(
     s3, c3 = section3(core)
     s3b, c3b = section3b(core)
     s4, c4 = section4(core)
+    s4b, c4b = section4b(core)
     s5, c5 = section5(core)
     s6, c6 = section6(live_finals_list)
     s7, c7 = section7(confirm_finals_list)
@@ -604,7 +645,7 @@ def render(
     )
     s9, c9 = section9(exploratory_finals_list)
 
-    all_citations = c1 | c2 | c3 | c3b | c4 | c5 | c6 | c7 | c8 | c9
+    all_citations = c1 | c2 | c3 | c3b | c4 | c4b | c5 | c6 | c7 | c8 | c9
     verify_citations(runs_root, all_citations)
 
     header_episodes = core.episodes
@@ -650,6 +691,10 @@ Flags and tokens/latency/tool calls (same cells):
 ## 4. Verification category per publication attempt{mock_tag()}
 
 {s4}
+
+### 4b. Where verification broke (unauthorized commits, by committing attempt){mock_tag()}
+
+{s4b}
 
 ## 5. Terminal outcomes, coverage and infrastructure failures{mock_tag()}
 

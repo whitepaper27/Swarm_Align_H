@@ -53,7 +53,7 @@ service-recorded provenance. In the missing-approval state, unauthorized committ
 assertion contrast (B−A) was {{RESULT: B−A discordant/n, p_holm, or "not detected at this n" — from
 RESULTS.md §1}}, and the provenance contrast (D−B) was {{RESULT: D−B discordant/n, p_holm, or "not
 detected at this n" — from RESULTS.md §1}}. Unauthorized commits were
-{{NEEDS make_results ROW: verification category of unauthorized commits only (RESULTS.md §4 counts all attempts)}}.
+{{RESULT: unauthorized commits by committing category — from RESULTS.md §4b}}.
 Authorized success in the approved state was {{RESULT: per-cell correct authorized success/n — from
 RESULTS.md §3}}. In a live three-agent chain, {{RESULT: ordinary vs adversarial episodes,
 unauthorized commits, labeled false approval claims — from RESULTS.md §6}}. {{AUTHOR: one sentence stating
