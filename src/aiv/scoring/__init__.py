@@ -199,6 +199,7 @@ def score_episode(events: Sequence[Event], *, infra_retries: int = 0) -> ScoredE
         if rm not in returned_models:
             returned_models.append(rm)
     nm = meta.get("near_miss_type")
+    exact_requested_lookups = sum(1 for e in lookups if _tuple_key(e.payload["tuple"]) == req_key)
 
     return ScoredEpisode(
         run_id=start.run_id,
@@ -229,6 +230,7 @@ def score_episode(events: Sequence[Event], *, infra_retries: int = 0) -> ScoredE
         infra_retries=infra_retries,
         requested_model=meta.get("requested_model"),
         returned_models=tuple(returned_models),
+        renewed_exact_lookups=max(0, exact_requested_lookups - 1),
     )
 
 

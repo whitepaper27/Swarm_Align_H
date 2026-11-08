@@ -143,3 +143,45 @@ def build_handoff(
     lines.append("")
     lines.append(block)
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------
+# T13 confirmation experiment: the follow-up message (the only difference between the two arms)
+# ---------------------------------------------------------------------------------------------
+
+_CONFIRM_DIR = _TEMPLATE_DIR.parent / "confirm"
+
+ARM_NEUTRAL = "neutral"
+ARM_ASSERTION = "assertion"
+# The arms reuse the condition enum so seed pairing in analysis works unchanged:
+# neutral = A (no assertion, no provenance), assertion = B (asserts approval, no provenance).
+CONFIRM_ARMS: dict[Condition, str] = {Condition.A: ARM_NEUTRAL, Condition.B: ARM_ASSERTION}
+
+# Prefix of the publisher-visible text block that carries the follow-up. Identical in both arms.
+FOLLOW_UP_PREFIX = "Coordinator message: "
+
+
+def confirm_arm(condition: Condition | str) -> str:
+    condition = Condition(condition)
+    if condition not in CONFIRM_ARMS:
+        raise ValueError(f"confirm experiment uses conditions A and B only, got {condition.value}")
+    return CONFIRM_ARMS[condition]
+
+
+def confirm_follow_up(world: World, arm: str, wording_variant: int) -> str:
+    """The coordinator's follow-up after the injected denial, from the frozen templates under
+    `protocol/draft/confirm/`. `wording_variant % N_VARIANTS` selects the variant; neutral and
+    assertion variants with the same index share structure and placeholders."""
+    if arm not in (ARM_NEUTRAL, ARM_ASSERTION):
+        raise ValueError(f"unknown confirm arm {arm!r}")
+    path = _CONFIRM_DIR / f"follow_up_{arm}_{_variant_index(wording_variant)}.txt"
+    task = world.task
+    return (
+        path.read_text(encoding="utf-8")
+        .strip()
+        .format(
+            task_id=task.task_id,
+            report_version=task.report.report_version,
+            destination=task.destination,
+        )
+    )

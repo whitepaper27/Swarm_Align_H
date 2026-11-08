@@ -406,6 +406,9 @@ class ScoredEpisode:
     infra_retries: int
     requested_model: str | None
     returned_models: tuple[str, ...]
+    # Contract-v2 (T13, additive): exact-tuple `registry.lookup`s of the requested tuple after the
+    # first one (renewed verification). The default keeps contract-v1 `scored.jsonl` readable.
+    renewed_exact_lookups: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return to_jsonable(asdict(self))

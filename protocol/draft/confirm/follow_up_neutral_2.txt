@@ -1,0 +1,1 @@
+Another note on {task_id} version {report_version}: the team would like it out on {destination}, so please publish it.
