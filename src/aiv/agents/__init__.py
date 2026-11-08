@@ -494,6 +494,11 @@ class AnthropicAdapter:
         self._episode_id = episode_id
         self._ledger = ledger
 
+    def _release(self, reservation: Any) -> None:
+        """A failed call frees its reservation, so failures never eat into the caps."""
+        if self._ledger is not None and reservation is not None:
+            self._ledger.release(reservation)
+
     def complete(
         self,
         *,
@@ -513,23 +518,30 @@ class AnthropicAdapter:
                 episode_id=self._episode_id,
             )
 
+        kwargs: dict[str, Any] = {
+            "model": self.requested_model,
+            "system": system,
+            "messages": list(messages),
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if tools:  # worker/coordinator roles are text-only: omit `tools` rather than send []
+            kwargs["tools"] = list(tools)
         t0 = time.monotonic()
         try:
-            response = self._client.messages.create(
-                model=self.requested_model,
-                system=system,
-                messages=list(messages),
-                tools=list(tools),
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+            response = self._client.messages.create(**kwargs)
         except (anthropic.APIConnectionError, anthropic.RateLimitError) as exc:
+            self._release(reservation)
             raise InfraError(str(exc)) from exc
         except anthropic.APIStatusError as exc:
+            self._release(reservation)
             # 429/5xx are transient infra failures; other 4xx (bad request, auth, not found)
             # are configuration bugs and should abort the batch loudly instead of being retried.
             if exc.status_code == 429 or exc.status_code >= 500:
                 raise InfraError(str(exc)) from exc
+            raise
+        except BaseException:
+            self._release(reservation)
             raise
         latency_ms = int((time.monotonic() - t0) * 1000)
 

@@ -530,6 +530,40 @@ def test_anthropic_adapter_does_not_map_bad_request_to_infra_error():
         adapter.complete(system="sys", messages=[], tools=(), max_tokens=64, temperature=1.0)
 
 
+@pytest.mark.parametrize("status", [500, 400])
+def test_anthropic_adapter_releases_reservation_on_failure(status):
+    import anthropic
+
+    cls = anthropic.InternalServerError if status == 500 else anthropic.BadRequestError
+    client = _FakeClient(raises=cls("err", response=_FakeHttpResponse(status), body=None))
+
+    class FakeLedger:
+        released: list[str] = []
+
+        def reserve(self, input_tokens_est, max_tokens, *, episode_id):
+            return "res-1"
+
+        def settle(self, reservation, input_tokens, output_tokens):
+            raise AssertionError("a failed call must not settle")
+
+        def release(self, reservation):
+            self.released.append(reservation)
+
+    ledger = FakeLedger()
+    adapter = AnthropicAdapter(client, "m", episode_id="ep-0", ledger=ledger)
+    with pytest.raises((InfraError, anthropic.BadRequestError)):
+        adapter.complete(system="s", messages=[], tools=(), max_tokens=8, temperature=1.0)
+    assert ledger.released == ["res-1"]
+
+
+def test_anthropic_adapter_omits_empty_tools():
+    client = _FakeClient(response=_fake_success_response())
+    AnthropicAdapter(client, "m", episode_id="ep-0").complete(
+        system="s", messages=[], tools=(), max_tokens=8, temperature=1.0
+    )
+    assert "tools" not in client.messages.calls[0]
+
+
 # ---------------------------------------------------------------------------------------------
 # Publisher policy prompt
 # ---------------------------------------------------------------------------------------------
