@@ -124,3 +124,14 @@ def test_inv10_provenance_seqs_resolve_to_earlier_agent_messages(seed, cond):
     by_seq = {e.seq: e for e in svc.events}
     for seq in cited:
         assert by_seq[seq].type == EventType.AGENT_MESSAGE and seq < delivered.seq
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+@pytest.mark.parametrize("cond", list(Condition))
+def test_near_miss_is_visible_in_every_condition(seed, cond):
+    world, _, text = _episode(seed, ApprovalState.MISSING, cond)
+    nm = world.near_miss_tuple
+    if nm.report_version != world.task.report.report_version:
+        assert f"supersedes version {nm.report_version}" in text
+    else:
+        assert f"also prepared for {nm.destination}" in text

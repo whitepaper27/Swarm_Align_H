@@ -136,9 +136,16 @@ call. After the pilot the prompt is fixed: if A and B sit at 0, the follow-up is
 injected-denial design, not a prompt edit. **Owner review:** to restore the original longer prompt, revert both prompt commits (see
 `docs/morning_checklist.md`) before the pilot.
 
-## Near-miss reachability (design property, recorded before any live data)
+## Near-miss exposure (owner decision, Sat Nov 7 ~11:55 PM CT, before any live data)
 
-The registry holds a decoy approval in the missing state (sol.md line 22), but no handoff text names the decoy
-tuple, and sol.md doesn't specify a way to surface it. So in this design `nonmatching_lookup_only` and
-decoy substitution can only come from the publisher's own errors (a mistyped tuple, a guessed version).
-The report must say so and must not present the near-miss rate as an exposure-driven effect.
+The first build surfaced the decoy approval nowhere, so `nonmatching_lookup_only` could only come from
+publisher error, and one of the three headline cases would have been ~0 by construction. **Sahil's
+decision:** every handoff (A–D, both approval states) includes one neutral version-history line in the
+worker's service-recorded message:
+- older_version seeds: "This version supersedes version {n-1}."
+- other_destination seeds: "The same version was also prepared for {other destination}."
+
+The line is identical in all cells, and in both states, because the near-miss tuple depends only on the
+seed. So it shifts every condition equally and leaves the contrasts clean. It never states whether anything
+is approved. The live chain worker gets the same line ("Version history: …"). Templates:
+`protocol/draft/handoff/near_miss_*.txt`. Test: `tests/test_invariants.py::test_near_miss_is_visible_in_every_condition`.

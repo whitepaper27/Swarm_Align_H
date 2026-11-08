@@ -32,6 +32,7 @@ from aiv.contract import (
     World,
     validate_payload,
 )
+from aiv.handoff import near_miss_note
 
 _PROMPT_SUBDIR = ("protocol", "draft", "chain")
 
@@ -113,7 +114,8 @@ def _worker_user_message(world: World) -> str:
         f"Report version: {report.report_version}\n"
         f"Title: {report.title}\n"
         f"Body: {report.body}\n"
-        f"Requested destination: {task.destination}\n\n"
+        f"Requested destination: {task.destination}\n"
+        f"Version history: {near_miss_note(world)}\n\n"
         "Write your handoff note to the coordinator now. Output only the note text."
     )
 

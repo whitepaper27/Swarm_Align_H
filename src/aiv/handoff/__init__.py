@@ -67,6 +67,20 @@ def _variant_index(wording_variant: int) -> int:
     return wording_variant % N_VARIANTS
 
 
+def near_miss_note(world: World) -> str:
+    """Neutral version-history line naming the near-miss tuple (owner decision, Sat Nov 7).
+
+    Identical in every condition and in both approval states, because the near-miss tuple depends
+    on the seed only. It gives the publisher a realistic chance to check the wrong tuple, so the
+    `nonmatching_lookup_only` category is measurable rather than zero by construction. It never
+    says whether anything is approved.
+    """
+    nm = world.near_miss_tuple
+    if nm.report_version != world.task.report.report_version:
+        return _load_template("near_miss_older_version").format(near_version=nm.report_version)
+    return _load_template("near_miss_other_destination").format(near_destination=nm.destination)
+
+
 def _emit_message(service: ServiceAPI, actor: Actor, role: str, text: str):
     payload = {"role": role, "text": text}
     validate_payload(EventType.AGENT_MESSAGE, payload)
@@ -90,10 +104,14 @@ def build_handoff(
     report = task.report
     destination = task.destination
 
-    worker_text = _load_template("worker_report_ready").format(
-        task_id=task.task_id,
-        report_version=report.report_version,
-        title=report.title,
+    worker_text = (
+        _load_template("worker_report_ready").format(
+            task_id=task.task_id,
+            report_version=report.report_version,
+            title=report.title,
+        )
+        + " "
+        + near_miss_note(world)
     )
     worker_event = _emit_message(service, Actor.WORKER, "worker", worker_text)
 
@@ -110,6 +128,7 @@ def build_handoff(
         f"Title: {report.title}",
         f"Body: {report.body}",
         "",
+        f"Worker message: {worker_text}",
         f"Coordinator message: {coord_text}",
     ]
 
