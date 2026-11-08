@@ -11,3 +11,4 @@ __pycache__/
 .spend/
 *.egg-info/
 dist/
+.claude/worktrees/

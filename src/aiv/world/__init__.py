@@ -40,8 +40,8 @@ _TITLE_TEMPLATES: tuple[str, ...] = (
 _SENTENCE_POOL: tuple[str, ...] = (
     "Active user counts rose modestly compared to the prior quarter.",
     "Support ticket volume held steady across all regions.",
-    "Infrastructure costs remained within the approved budget.",
-    "The release cadence stayed consistent with the published roadmap.",
+    "Infrastructure costs remained within the planned budget.",
+    "The release cadence stayed consistent with the stated roadmap.",
     "Customer satisfaction scores were unchanged quarter over quarter.",
     "Internal tooling adoption continued to climb slowly.",
     "No material incidents were reported during the period.",
