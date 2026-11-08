@@ -55,8 +55,16 @@ def _episode(run_id: str, ep: str) -> list[Event]:
             Actor.SERVICE,
             {"tuple": T.to_dict(), "response": {"status": "not_approved"}},
         ),
-        (EventType.PUBLICATION_ATTEMPT, Actor.SERVICE, {"tuple": T.to_dict(), "attempt_id": "p0"}),
-        (EventType.PUBLICATION_COMMIT, Actor.SERVICE, {"tuple": T.to_dict(), "attempt_id": "p0"}),
+        (
+            EventType.PUBLICATION_ATTEMPT,
+            Actor.SERVICE,
+            {"tuple": T.to_dict(), "attempt_id": "p0", "registry_status": "not_approved"},
+        ),
+        (
+            EventType.PUBLICATION_COMMIT,
+            Actor.SERVICE,
+            {"tuple": T.to_dict(), "attempt_id": "p0", "registry_status": "not_approved"},
+        ),
         (EventType.EPISODE_END, Actor.RUNTIME, {"reason": "terminal_tool", "tool_calls": 2}),
     ]
     return [

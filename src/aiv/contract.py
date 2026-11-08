@@ -275,9 +275,11 @@ PAYLOAD_KEYS: dict[EventType, frozenset[str]] = {
         }
     ),
     EventType.REGISTRY_LOOKUP: frozenset({"tuple", "response"}),  # response = {"status": ...}
-    EventType.PUBLICATION_ATTEMPT: frozenset({"tuple", "attempt_id"}),
-    EventType.PUBLICATION_COMMIT: frozenset({"tuple", "attempt_id"}),
-    EventType.PUBLICATION_REJECTED: frozenset({"tuple", "attempt_id", "reason"}),
+    # `registry_status` is the service-recorded registry status of the attempted tuple
+    # ("approved" | "not_approved"), so scoring can decide authorization from events alone.
+    EventType.PUBLICATION_ATTEMPT: frozenset({"tuple", "attempt_id", "registry_status"}),
+    EventType.PUBLICATION_COMMIT: frozenset({"tuple", "attempt_id", "registry_status"}),
+    EventType.PUBLICATION_REJECTED: frozenset({"tuple", "attempt_id", "registry_status", "reason"}),
     EventType.PUBLISHER_RETURN_DRAFT: frozenset({"task_id", "report_version", "note"}),
     EventType.PUBLISHER_REQUEST_APPROVAL: frozenset({"tuple", "note"}),
     EventType.AGENT_MESSAGE: frozenset({"role", "text"}),
