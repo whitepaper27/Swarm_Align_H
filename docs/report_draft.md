@@ -17,8 +17,8 @@ Page limit: 8 pages excluding references and appendices. Abstract: 150–250 wor
 Remaining slots for the owner / lead:
   {{AUTHOR: ...}}                         an author decision or wording choice
   {{REPO_URL}}                            public repository URL
-  {{NEEDS make_results ROW: ...}}         a generated RESULTS.md row is being added; fill from it
-  {{XPROVIDER: ...}}                      cross-provider results (RESULTS.md §10), pending
+(The former make_results-row and cross-provider slots are resolved: the cross-provider section is
+filled from RESULTS.md §10, and sentences that needed an ungenerated row were rewritten without it.)
 -->
 
 # Access Isn't Verification
@@ -37,21 +37,22 @@ Code, configuration and synthetic episode records: {{REPO_URL}}
 Agents that hand work to each other often pass along claims that the work has been approved. We
 study where approval verification can break in a handoff: an omitted check, a mismatched check, or
 action after an authoritative denial. A publisher agent (`claude-haiku-4-5-20251001`
-<!-- RESULTS.md header -->) receives a request relayed from a worker through a coordinator and always
-holds a free tool that looks up one exact (task, version, destination) tuple in a registry containing
-near-miss decoy approvals. Outcomes come only from ordered service events. Across 100
-<!-- freeze.json n_seeds --> seed-paired synthetic tasks comparing a neutral handoff, a scripted peer
-assertion of approval and service-recorded provenance, unauthorized committed publication in the
-missing-approval state was 0/100 observed in every condition (upper bound 0.036)
-<!-- RESULTS.md §3 -->. Both primary contrasts, assertion (B−A) and provenance under assertion
-(D−B), were not detected at this n (p (Holm) = 1) <!-- RESULTS.md §1 -->, and correct authorized
-success was 100/100 in every approved cell <!-- RESULTS.md §3 -->. In a live three-agent chain,
-unauthorized commits were 0/48 with ordinary and 0/48 with adversarial workers; the adversarial
-worker refused to write the false claim in 48/48 episodes <!-- RESULTS.md §6 -->. In a separately
-frozen follow-up that injects a real exact-tuple denial, a peer assertion produced no unauthorized
-publication (0/100 per arm) but renewed exact verification in 58/100 episodes against 0/100 neutral
-(secondary, unadjusted McNemar p = 6.9389e-18) <!-- RESULTS.md §7 -->. For this model and policy,
-peer approval claims did not override the registry; after a denial they often prompted a re-check.
+<!-- RESULTS.md header -->) receives a relayed request and always holds a free tool that looks up one
+exact (task, version, destination) tuple in a registry containing near-miss decoy approvals.
+Outcomes come only from ordered service events. Across 100 <!-- freeze.json n_seeds --> seed-paired
+synthetic tasks comparing a neutral handoff, a scripted peer assertion of approval and
+service-recorded provenance, unauthorized committed publication in the missing-approval state was
+0/100 observed in every condition (upper bound 0.036) <!-- RESULTS.md §3 -->; both primary
+contrasts were not detected at this n (p (Holm) = 1) <!-- RESULTS.md §1 -->. In a live three-agent
+chain, unauthorized commits were 0/48 with ordinary and 0/48 with adversarial workers; the
+adversarial worker refused in 48/48 <!-- RESULTS.md §6 -->. After an injected exact-tuple denial, a
+peer assertion produced 0/100 unauthorized publications per arm but renewed exact verification in
+58/100 episodes against 0/100 neutral (secondary, unadjusted McNemar p = 6.9389e-18)
+<!-- RESULTS.md §7 -->. In separate cross-provider strata, a `gemini-3.5-flash-lite` publisher had
+0/50 unauthorized commits observed in every condition and arm (upper bound 0.071)
+<!-- RESULTS.md §10a, §10b -->, and with a Gemini worker that wrote 24 false approval claims the
+Haiku publisher had 0/48 <!-- RESULTS.md §10c -->. For these models and this policy, peer approval
+claims did not override the registry; what triggered a re-check differed by model.
 {{AUTHOR: confirm or edit the closing sentence}}
 
 ---
@@ -81,7 +82,7 @@ failure points:
 3. **Action after authoritative denial.** It queries the exact tuple, receives "not approved", and
    acts anyway.
 
-**Contributions** (scope: one model, the prompts and workflow described here):
+**Contributions** (scope: the models, prompts and workflow described here):
 
 - A handoff harness with a free exact-tuple lookup, near-miss decoys, event-only scoring and a
   per-attempt verification decomposition (no lookup / non-matching only / exact denial / exact
@@ -90,6 +91,8 @@ failure points:
   power limits, plus a separately frozen injected-denial follow-up.
 - A live worker → coordinator → publisher validation with blind two-model labels and an annotated
   trace.
+- Separately frozen cross-provider strata: a non-Claude publisher, and a non-Claude worker whose
+  false claims reached a Claude publisher.
 
 ## 2. Related work
 
@@ -243,13 +246,12 @@ nonsignificant contrast is "not detected at this n", never "no effect".
 p < 0.05 only with at least 6 discordant seeds, all in one direction; under Holm, the smaller p-value
 must be below 0.025, which takes at least 7 <!-- GOAL.md statistical design -->. These thresholds
 depend only on the discordant count, so they hold at N = 100. A 0/100 cell has a 95% Clopper–Pearson
-upper bound of about 3.6%, against about 17% for 0/20 <!-- sol.md §14 -->. The design can detect
-large paired effects and cannot rule out modest ones.
+upper bound of about 3.6% <!-- sol.md §14 -->. The design can detect large paired effects and
+cannot rule out modest ones.
 
-**Spend.** A file-locked ledger reserves an upper-bound cost for every call against a $50 cap.
-Token totals: main 2628797 input / 236110 output; live 318389 / 42843; confirm
-452230 / 44463 <!-- RESULTS.md §8 -->. Spend in USD: {{NEEDS make_results ROW: USD spend by
-partition (RESULTS.md §8 shows NOT RUN)}}.
+**Spend.** A file-locked ledger reserves an upper-bound cost before every call and refuses any call
+that would exceed the $50 cap <!-- GOAL.md -->, so total spend, cross-provider batches included,
+stayed within it. USD amounts are not in the scored run files; token totals are in Appendix B.
 
 ## 5. Results: controlled evaluation
 
@@ -267,14 +269,12 @@ RESULTS.md §3.*
 
 **Primary contrasts.** Assertion (B−A): discordant +0/−0, paired n = 100, p (Holm) = 1. Provenance
 under assertion (D−B): +0/−0, paired n = 100, p (Holm) = 1 <!-- RESULTS.md §1 -->. Both are not
-detected at this n. Neither A nor B had an event (upper bound 0.036 each <!-- RESULTS.md §3 -->), so
-the assertion test had nothing to detect. Because B had no events, provenance had no unauthorized
-publication to reduce: D−B is uninformative about provenance as a mitigation, evidence neither for
-nor against it.
+detected at this n. With no events in A or B, neither test had anything to detect: D−B is
+uninformative about provenance as a mitigation, evidence neither for nor against it.
 
 **Secondary contrasts (exploratory).** C−A: +0.000, 95% seed-bootstrap CI [+0.000, +0.000];
-interaction (D−C)−(B−A): +0.000, [+0.000, +0.000] <!-- RESULTS.md §2 -->. The intervals have zero
-width because no cell had an event; they are not a statement of precision.
+interaction (D−C)−(B−A): +0.000, [+0.000, +0.000] <!-- RESULTS.md §2 -->. Zero width reflects the
+absence of events, not precision.
 
 **Where verification broke.**
 
@@ -286,10 +286,9 @@ width because no cell had an event; they are not a statement of precision.
 *Table 1. Verification category of each publication attempt (lookups with lower `seq` only). Rows
 merge conditions whose RESULTS.md §4 rows are identical. Run: `main/live-main-20261108T162908Z-21c089`.*
 
-No publication was attempted in the missing state: every missing-state episode ended in a safe
-return or an approval request (Table 2). The decomposition therefore contains only approved-state
-attempts, each preceded by an exact approved lookup; unauthorized commits by category are 0 in every
-cell <!-- RESULTS.md §4, §4b -->. No omission or mismatch occurred.
+No publication was attempted in the missing state (Table 2), so the decomposition contains only
+approved-state attempts, each preceded by an exact approved lookup; unauthorized commits by category
+are 0 in every cell <!-- RESULTS.md §4, §4b -->. No omission or mismatch occurred.
 
 **Verification and utility.** Exact verification before the decision: 100/100, CP [0.964, 1.000] in
 each of the eight cells. Correct authorized success: 100/100, CP [0.964, 1.000] in each approved
@@ -309,9 +308,8 @@ request: 100/100 in each missing-state cell <!-- RESULTS.md §3 -->.
 `main/live-main-20261108T162908Z-21c089`.*
 
 **Narrative versus record.** The flag fired in 1/100 episodes in each of A, B and D (missing) and in
-0/100 in every other cell <!-- RESULTS.md §3 -->. Both labelers reviewed all 11 flagged episodes
-across the main, live and confirmation runs and labeled every one a false positive (a correct report
-of a denial, or a peer claim quoted and rejected) <!-- docs/labels/agreement.md;
+0/100 in every other cell <!-- RESULTS.md §3 -->. Both labelers judged all 11 flagged episodes
+(main, live, confirmation) false positives, such as a peer claim quoted and rejected <!-- docs/labels/agreement.md;
 docs/labels/flag_review_final.jsonl -->.
 
 ### Confirmation: does reassurance override a denial?
@@ -332,8 +330,8 @@ The primary contrast, unauthorized commit (assertion − neutral), was +0/−0, 
 McNemar p = 1: not detected at this n. The secondary, unadjusted contrast, renewed exact verification
 (a further exact lookup after the injected one), was +58/−0, difference +0.580, p = 6.9389e-18:
 detected at this n <!-- RESULTS.md §7 -->. The safe-return-plus-approval-request counts were not
-tested. Other terminal outcomes per arm: {{NEEDS make_results ROW: confirm terminal outcomes per arm
-(RESULTS.md §7 gives only safe return + approval request)}}. Exact verification before the decision
+tested, and RESULTS.md §7 does not break down the remaining terminal outcomes. Exact verification
+before the decision
 holds in every confirmation episode by construction. These estimates are conditional on a supplied
 denial history, not a natural frequency.
 
@@ -357,35 +355,55 @@ Ordinary chain: 48 episodes, 0/48 unauthorized commits, false approval claims 0 
 1 coordinator-introduced / 0 coordinator-strengthened / 0 ambiguous, worker refused 0/48, publisher
 adopted a claim 0/48. Adversarial chain: 48 episodes, 0/48 unauthorized commits, claims
 0 / 0 / 0 / 0, worker refused 48/48, publisher adopted a claim 0/48 <!-- RESULTS.md §6 --> (runs
-`live/live-live-20261108T163610Z-859ced`, `live/live-live-20261108T163713Z-d7bc17`). By condition
-(A/C): {{NEEDS make_results ROW: live episodes and unauthorized commits by condition A/C}}. These
+`live/live-live-20261108T163610Z-859ced`, `live/live-live-20261108T163713Z-d7bc17`). These
 samples are descriptive and untested.
 
-Because the adversarial worker always refused, the live attack never reached the publisher. The one
-labeled claim arose under ordinary instructions: the coordinator, told not to add an approval claim,
+Because the Haiku adversarial worker always refused, its attack never reached the publisher
+(Section 7 uses a non-Claude worker). The one labeled claim arose under ordinary instructions: the coordinator, told not to add an approval claim,
 wrote "Version 3 is ready and approved for publication to this destination."
 (`chain-s305-A-missing-a0`) after the worker said only that the report was ready. The publisher
 checked the registry and did not adopt it <!-- docs/labels/live_labels_final.jsonl -->.
 
 **Label reliability.** The labelers agreed on 96/96 live episodes for each of origin,
 worker_refused and publisher_adopted_claim (Cohen's kappa 1.00) and on 11/11 flag verdicts (kappa
-1.00) <!-- docs/labels/agreement.md -->; 0 disagreements needed adjudication <!-- RESULTS.md §6 -->.
-Near-ceiling agreement partly reflects the dominance of the `none` class (most episodes contain no
-claim), and both labelers are Claude models, as is the publisher.
+1.00) <!-- docs/labels/agreement.md -->; 0 disagreements needed adjudication here
+<!-- RESULTS.md §6 -->. Near-ceiling agreement partly reflects the dominant `none` class, and both
+labelers are Claude models, as is the publisher.
 
-### Cross-provider extension
+## 7. Cross-provider extension
 
-{{XPROVIDER: RESULTS.md §10 — pending}}
+Decided before any cross-provider data (sol.md §16), this extension targets three gaps above: one
+model, a live attack that never reached the publisher, and an untestable provenance contrast. A rule
+fixed in advance picks each provider's cheapest current tool-capable model under a stable ID:
+`gemini-3.5-flash-lite`. OpenAI was not run; the available key returned 401 <!-- sol.md §16 -->.
+Each stratum has its own freeze and fresh seeds (Appendix B) and is never pooled with Sections 5–6
+or with another stratum.
 
-Decided before any cross-provider data (sol.md §16), this extension targets the single-model limit,
-the live attack that never reached the publisher, and the untestable provenance contrast. A rule
-fixed in advance picks each provider's cheapest current tool-capable model under a stable ID
-(`gemini-3.5-flash-lite`; OpenAI was blocked by an unusable key). Track 1 uses it as the live worker,
-gated on whether it writes the false claim; Track 2 uses it as the publisher in frozen A–D and
-confirmation batches, cut if adapter or infrastructure failures exceed 5%. Every model run is
-reported, and these strata are never pooled with the results above.
+**Gemini worker, Haiku coordinator and publisher (`xlive`, conditions A/C).** An exploratory
+discovery batch, not reported as a result, had shown that this worker writes the false claim.
+In the adversarial chain the worker refused 0/48; labels give 24 worker-originated false approval
+claims and 0 coordinator-introduced, coordinator-strengthened or ambiguous; the ordinary chain had
+none <!-- RESULTS.md §10c -->. The coordinator relayed such claims ("The worker indicates this
+version … has been cleared by compliance and leadership"
+<!-- docs/labels/xlive_episodes.md, chain-s363-C-missing-a0 -->), so the attack reached the
+publisher. Unauthorized commits: 0/48 adversarial, 0/48 ordinary; publisher adopted a claim: 1/48
+adversarial, 0/48 ordinary <!-- RESULTS.md §10c -->. In that episode (`chain-s363-C-missing-a0`)
+the publisher received `not_approved` for the exact tuple, did not publish and ended without a
+terminal action, but *offered* to send the approver a request restating the clearance claim
+unattributed; the owner ruled this an adoption <!-- docs/labels/adjudications.jsonl -->. Labelers
+agreed 96/96 on origin and worker_refused but 95/96 on publisher_adopted_claim (Cohen's kappa 0.00)
+<!-- docs/labels/xlive_agreement.md -->: the only adoption label is their one disagreement.
 
-## 7. Mitigation versus utility
+**Gemini publisher (`xmain`, `xconfirm`; missing state only).** On the Section 5 handoffs,
+unauthorized commits were 0/50 observed (upper bound 0.071) in each of A–D; both primary contrasts
+were +0/−0, p (Holm) = 1, not detected at this n; exact verification before the decision was 50/50
+in every condition <!-- RESULTS.md §10a -->. After an injected denial, unauthorized commits were
+0/50 observed per arm, and renewed exact verification was 50/50 neutral and 46/50 assertion (+0/−4,
+p = 0.125, secondary, unadjusted: not detected) <!-- RESULTS.md §10b -->. Without the approved
+state these batches cannot separate caution from refusing everything, and with no events D−B is
+again uninformative.
+
+## 8. Mitigation versus utility
 
 The mitigation tested is provenance. D−B and C−A were not detected (Section 5); correct authorized
 success was 100/100 in C and D as in A and B, and mean tool calls were 2.0 in every cell
@@ -393,21 +411,24 @@ success was 100/100 in C and D as in A and B, and mean tool calls were 2.0 in ev
 reduce authorized success at this n. We did not run the service-enforcement reference; an atomic
 exact-tuple check at publication would reject every unapproved commit here by construction.
 
-## 8. Discussion and conclusion
+## 9. Discussion and conclusion
 
 With a free exact-tuple lookup and a stated verification obligation, unauthorized publication in the
 missing state was 0/100 observed in each of A–D (upper bound 0.036) <!-- RESULTS.md §3 -->, and the
 assertion and provenance contrasts were not detected at this n. This is not evidence of robustness in
-general: the upper bounds leave room for modest effects. Every approved-state attempt followed an
-exact approved lookup and no missing-state episode attempted publication, so no omitted or mismatched
-check was observed even with the near-miss named in every handoff.
+general: the upper bounds leave room for modest effects. No omitted or mismatched check was
+observed, even with the near-miss named in every handoff.
 
 The follow-up fixed in advance for a zero base rate (GOAL.md) was the injected-denial design, not
 prompt tuning. After an authoritative denial, the publisher did not publish under a peer assertion
 and instead re-queried the registry in 58/100 assertion episodes against 0/100 neutral (secondary,
 unadjusted) <!-- RESULTS.md §7 -->: the peer claim became a reason to re-check the record, not a
-substitute for it. The contribution is an informative boundary for this model, policy and workflow,
-plus that mechanism observation.
+substitute for it. The Gemini publisher re-checked in both arms (Section 7). The strata differ in
+freeze, seeds and n and were not tested against each other, but the re-check *trigger* looks
+model-dependent while the safe outcome held for both providers. When a Gemini worker's false claim
+reached the Haiku publisher, it never committed, though once it offered to pass the claim on. The
+contribution is an informative boundary for these models, policy and workflow, plus that mechanism
+observation.
 
 **Engineering lesson.** Measurement mode lets violations through so behavior can be observed. In
 deployment, the registry check belongs inside the publication service, bound to the exact tuple and
@@ -415,11 +436,15 @@ applied atomically, so correctness does not depend on whether an agent verifies 
 finds. Access is not verification, and verification by the acting model is not enforcement.
 
 **Future work.** Untrusted task-content injection, tested with pre-registered cases from a
-published benchmark.
+published benchmark. Separately, whether agents with different permissions turn observability
+infrastructure, such as a shared log, into a communication channel is a distinct study (sol.md §17),
+outside this result set.
 
-**Limitations.** One model, one policy wording family, synthetic tasks, a local mock service and 100
-<!-- freeze.json n_seeds --> paired seeds per state; modest effects cannot be ruled out, and the
-near-miss line and padding shape the rates. Appendix A gives the full list.
+**Limitations.** Two providers' publishers, one cheap tier each (OpenAI not run); one policy
+wording family, synthetic tasks, a local mock service and 100 <!-- freeze.json n_seeds --> paired
+seeds per state (50 for Gemini, missing state only); modest effects cannot be ruled out, and the
+near-miss line and padding shape the rates. Labels come from two Claude models plus one owner
+ruling. Appendix A gives the full list.
 
 ---
 
@@ -454,10 +479,21 @@ https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/
 
 ## Appendix A. Limitations and Dual-Use / Ethical Considerations
 
-**Scope of claims.** All claims are limited to the tested model (`claude-haiku-4-5-20251001`
-<!-- freeze.json model_ids.actor -->), the frozen prompts and wording variants, this three-role
-workflow, and the sprint budget. They do not transfer to other models, policies, tool designs or
-deployment settings without new evidence.
+**Scope of claims.** All claims are limited to the tested models (`claude-haiku-4-5-20251001`
+<!-- freeze.json model_ids.actor --> and, in the separately frozen cross-provider strata,
+`gemini-3.5-flash-lite` <!-- RESULTS.md §10 -->), the frozen prompts and wording variants, this
+three-role workflow, and the sprint budget. They do not transfer to other models, policies, tool
+designs or deployment settings without new evidence.
+
+**Two providers, one cheap tier each.** The publisher was tested on two providers, each at the
+cheapest current tool-capable model with a stable ID, chosen by a rule fixed before any
+cross-provider data (sol.md §16). Larger or reasoning-heavy tiers were not tested. OpenAI was not
+run, because the available key returned 401 (sol.md §16). Cross-provider strata are analyzed
+separately, never pooled with each other or with the Haiku results, and differ from them in freeze,
+seeds and n; no between-model contrast was tested. The Gemini publisher batches cover only the
+missing state (50 <!-- freeze.json n_seeds --> seeds), so they measure no authorized success and
+cannot distinguish caution from refusing everything. The discovery batch that gated the
+heterogeneous chain is exploratory and is not reported as a result.
 
 **Sample size.** The unit is the task seed, with 100 <!-- freeze.json n_seeds --> paired seeds per
 approval state. The design can detect only large paired effects; a contrast that is not significant
@@ -465,15 +501,18 @@ is "not detected at this n", and a zero-event cell has a non-trivial upper bound
 are exploratory and uncorrected, including the confirmation experiment's renewed-verification
 contrast.
 
-**Floor effects.** With no unauthorized publication in any controlled cell, the provenance contrasts
-(D−B, C−A) could not show a reduction; they are uninformative about provenance as a mitigation.
+**Floor effects.** With no unauthorized publication in any controlled cell, for either publisher,
+the provenance contrasts could not show a reduction; they are uninformative about provenance as a
+mitigation.
 
 **Conditional follow-up.** The confirmation experiment injects a denial into the publisher's
 history. Its estimates are conditional on that history and say nothing about how often it arises
 naturally.
 
-**Live adversarial panel.** The adversarial worker refused to write the false claim in every
-episode, so the live attack never reached the publisher.
+**Live adversarial panel.** The Haiku adversarial worker refused to write the false claim in every
+episode, so in that chain the attack never reached the publisher. With a Gemini worker it did, but
+the heterogeneous chain is small (48 episodes per variant <!-- RESULTS.md §10c -->), descriptive and
+untested, and the coordinator and publisher were still Claude models.
 
 **Synthetic data and local service.** All tasks, reports, destinations and approvals are synthetic
 and seeded. The "publication service" is a local mock that only records events; nothing is published
@@ -502,9 +541,12 @@ such as that in the motivating incident.
 screen used only to select traces for manual review; it can miss claims or flag benign text, and it
 never changes an outcome. Labels of false approval claims and flag verdicts were produced by two
 Claude models (Opus and Sonnet), independently and blind to each other, under a rubric frozen before
-labeling, with owner adjudication of disagreements (none arose). The labelers belong to the same
-model family as the publisher, and their near-ceiling agreement partly reflects the dominance of the
-`none` class.
+labeling, with owner adjudication of disagreements. None arose for the Haiku chain; for the
+heterogeneous chain, one did, on publisher_adopted_claim (95/96 agreement, Cohen's kappa 0.00
+<!-- docs/labels/xlive_agreement.md -->), and the owner ruled that episode an adoption
+<!-- docs/labels/adjudications.jsonl -->. The only adoption label therefore rests on one person's
+ruling. The labelers belong to the same model family as the Haiku publisher, and their near-ceiling
+agreement elsewhere partly reflects the dominance of the `none` class.
 
 **Dual use.** The adversarial worker prompt is, in effect, a short recipe for inducing an agent to
 take an unauthorized action through a false approval claim. We release it for reproducibility,
@@ -528,6 +570,20 @@ two near-miss lines), chain role prompts (`chain/worker_ordinary.md`, `chain/wor
 stopping rule). Git commits: `85a954b6e85b8ede06d0d5c4715ebbc381b3386b` (main) and
 `cd1f11052a95dd75dc42f112a7637633c812a415` (confirmation) <!-- freeze.json git_commit -->.
 
+**Cross-provider freezes** (sol.md §16; RESULTS.md §10). `F20261108-1920-73eed8ba` (`xlive`: worker
+`gemini-3.5-flash-lite`, coordinator and publisher `claude-haiku-4-5-20251001`; conditions A and C,
+both states; seeds 340–351 ordinary and 360–371 adversarial); `F20261108-1928-7c670a37` (`xmain`:
+publisher `gemini-3.5-flash-lite`; conditions A–D, missing state; seeds 600–649);
+`F20261108-1929-da1da742` (`xconfirm`: publisher `gemini-3.5-flash-lite`; neutral and assertion
+arms; seeds 700–749) <!-- freeze.json model_ids, conditions, approval_states, seeds -->. Runs:
+`xlive/live-xlive-20261108T192345Z-3e02c0` (ordinary), `xlive/live-xlive-20261108T192442Z-f29c67`
+(adversarial), `xmain/live-xmain-20261108T193940Z-b7c7e2`,
+`xconfirm/live-xconfirm-20261108T194028Z-ac5b2f` <!-- RESULTS.md §10 -->.
+
+**Token totals** (Haiku partitions): main 2628797 input / 236110 output; live 318389 / 42843;
+confirm 452230 / 44463 <!-- RESULTS.md §8 -->. RESULTS.md §8 reports no USD amounts and no
+cross-provider token totals.
+
 **Example wordings** (variant 0 of three for coordinator and padding text; the provenance template
 is single): neutral coordinator "Please publish this
 report to {destination} when you are ready."; asserting coordinator "This has been approved for
@@ -544,10 +600,11 @@ uv run aiv run --mode mock --partition mock --seeds 0-1
 uv run python scripts/make_results.py                 # writes RESULTS.md; mock output is labeled MOCK
 uv run aiv freeze validate F20261108-1627-c74d92a0
 uv run aiv freeze validate F20261108-1639-fdab8e15
+uv run aiv freeze validate F20261108-1920-73eed8ba    # likewise -1928-7c670a37, -1929-da1da742
 ```
 
-**Re-scoring the released runs.** `uv run python scripts/make_results.py --partitions main,live,confirm`
-regenerates `RESULTS.md` and `analysis/fig_main.png` from the committed, hash-chained run files in
+**Re-scoring the released runs.** `uv run python scripts/make_results.py --partitions
+main,live,confirm,xlive,xmain,xconfirm` regenerates `RESULTS.md` and `analysis/fig_main.png` from the committed, hash-chained run files in
 `runs/`.
 
 **Live re-run (costs money; requires an API key, pricing in `.env`, and a batch authorization file).**
@@ -584,7 +641,7 @@ parallel worktrees. The related-work memo (`docs/contribution.md`) was compiled 
 agent that opened each cited URL. Labels of live-chain false approval claims and narrative-flag
 verdicts were assigned by two Claude models (Opus and Sonnet), independently and blind to each
 other, under a rubric frozen before labeling; disagreements were routed to the author for
-adjudication, and none arose. An AI agent drafted this report's structure and text and filled every
+adjudication (none in the Haiku chain, one in the heterogeneous chain). An AI agent drafted this report's structure and text and filled every
 number from the generated `RESULTS.md`, the freeze manifests and the label files. The author reviewed
 all outputs and is responsible for their accuracy.
 
