@@ -103,7 +103,7 @@ def make_live_adapter_factory(model_id: str, ledger: object | None):
 
     def factory(spec: EpisodeSpec, world):
         del world
-        return AnthropicAdapter(client, model_id, episode_id=spec.episode_id, ledger=ledger)
+        return AnthropicAdapter(client, model_id, episode_id=spec.spend_key, ledger=ledger)
 
     return factory
 
@@ -192,7 +192,7 @@ def make_chain_handoff(*, adversarial: bool, role_factory, max_tokens: int = 512
 
     def build(world, condition, wording_variant, service):
         del wording_variant  # chain wording comes from the role models
-        worker, coordinator = role_factory(world, service.episode_id)
+        worker, coordinator = role_factory(world, f"{service.run_id}/{service.episode_id}")
         return build_chain_handoff(
             world,
             condition,

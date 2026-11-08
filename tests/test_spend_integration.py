@@ -141,3 +141,34 @@ def test_aborted_batch_keeps_completed_episodes(tmp_path, workers):
     assert verify_run(run_dir, recorder_key("mock")[0]) == []  # closed with a checkpoint
     seeds = {s.seed for s in read_scored(run_dir)}
     assert 1 not in seeds and 0 in seeds
+
+
+def test_rerun_does_not_inherit_episode_spend(tmp_path):
+    """Same episode_id in two runs: each run gets its own per-episode cap (spend_key = run/ep)."""
+
+    class Heavy(_Client):
+        def create(self, **kwargs):
+            r = super().create(**kwargs)
+            r.usage = SimpleNamespace(input_tokens=10, output_tokens=1000)
+            return r
+
+    client = Heavy()
+    ledger = _ledger(tmp_path, episode_cap="0.008")  # one call fits; two would not
+    factory = lambda spec, world: AnthropicAdapter(  # noqa: E731
+        client, "m", episode_id=spec.spend_key, ledger=ledger
+    )
+    for run_id in ("run-1", "run-2"):
+        result = run_episode(
+            seed=0,
+            condition=Condition.A,
+            approval_state=ApprovalState.MISSING,
+            wording_variant=0,
+            config=CONFIG,
+            deps=Deps(),
+            adapter_factory=factory,
+            sink=ListSink(),
+            run_id=run_id,
+            ledger=ledger,
+        )
+        assert result.scored.terminal_outcome == TerminalOutcome.REFUSAL  # not budget_exhausted
+    assert len(client.calls) == 2

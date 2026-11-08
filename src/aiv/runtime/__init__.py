@@ -106,6 +106,12 @@ class EpisodeSpec:
     attempt: int
     episode_id: str
     chain: bool
+    run_id: str = ""
+
+    @property
+    def spend_key(self) -> str:
+        """Ledger key: unique per run, so a rerun never inherits an earlier run's episode spend."""
+        return f"{self.run_id}/{self.episode_id}"
 
 
 # `AdapterFactory(spec, world) -> ModelAdapter` — called once per attempt (fresh adapter, no
@@ -161,6 +167,7 @@ def run_episode(
             attempt=attempt,
             episode_id=episode_id,
             chain=config.chain,
+            run_id=run_id,
         )
         # Adapter construction does no I/O (the live adapter only stores a client reference);
         # a crash here is a real bug, not an infra failure, so it is deliberately outside the
