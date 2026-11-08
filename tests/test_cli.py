@@ -418,6 +418,7 @@ def test_mock_chain_run_end_to_end(tmp_path, monkeypatch, variant):
 
 
 def test_load_dotenv_does_not_override_and_skips_blanks(tmp_path, monkeypatch):
+    monkeypatch.delenv("AIV_NO_DOTENV")
     env = tmp_path / ".env"
     env.write_text(
         "# comment\nAIV_T_A=1\nAIV_T_B=\nAIV_T_C='q'\nAIV_T_D=from-file\n", encoding="utf-8"
@@ -432,3 +433,20 @@ def test_load_dotenv_does_not_override_and_skips_blanks(tmp_path, monkeypatch):
     assert "AIV_T_B" not in os.environ
     for k in ("AIV_T_A", "AIV_T_C"):
         monkeypatch.delenv(k)
+
+
+def test_freeze_records_actor_model_from_dotenv(tmp_path, monkeypatch, capsys):
+    import json
+
+    monkeypatch.delenv("AIV_NO_DOTENV")
+    monkeypatch.delenv("ACTOR_MODEL_ID", raising=False)
+    (tmp_path / ".env").write_text("ACTOR_MODEL_ID=model-from-dotenv\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "_repo_root", lambda: tmp_path)
+    draft = tmp_path / "protocol" / "draft"
+    draft.mkdir(parents=True)
+    (draft / "p.md").write_text("x\n", encoding="utf-8")
+    assert cli.main(["freeze", "--repo-root", str(tmp_path), "create"]) == 0
+    fid = capsys.readouterr().out.strip().splitlines()[-1]
+    frozen = json.loads((tmp_path / "protocol" / "frozen" / fid / "freeze.json").read_text())
+    assert frozen["config"]["model_ids"]["actor"] == "model-from-dotenv"
+    monkeypatch.delenv("ACTOR_MODEL_ID")

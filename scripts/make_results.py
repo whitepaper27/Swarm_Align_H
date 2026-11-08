@@ -20,6 +20,9 @@ from aiv.analysis.results import VerificationError, run  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aiv.cli import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # AIV_RECORDER_KEY for live runs
     parser = argparse.ArgumentParser(prog="make_results")
     parser.add_argument("--partitions", default="mock", help="comma-separated partition list")
     parser.add_argument("--runs-root", default="runs")

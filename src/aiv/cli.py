@@ -120,7 +120,7 @@ def load_dotenv(path: str | os.PathLike[str]) -> list[str]:
     """Load `KEY=VALUE` lines from `path` into `os.environ` without overriding variables that are
     already set. Blank values are skipped (an empty price stays "unknown"). Returns keys set."""
     p = Path(path)
-    if not p.is_file():
+    if os.environ.get("AIV_NO_DOTENV") or not p.is_file():  # tests set AIV_NO_DOTENV
         return []
     loaded = []
     for raw in p.read_text(encoding="utf-8").splitlines():
@@ -339,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
     if argv[:1] == ["freeze"]:
+        load_dotenv(_repo_root() / ".env")  # freeze records ACTOR_MODEL_ID
         try:
             from aiv.freeze import main as freeze_main
         except ImportError:
