@@ -22,6 +22,7 @@ from aiv.agents import load_publisher_policy, publisher_loop, publisher_policy_p
 from aiv.contract import (
     MANIFEST_FILE,
     SCORED_FILE,
+    TOOL_CHECK_APPROVAL,
     Actor,
     ApprovalState,
     Condition,
@@ -133,6 +134,92 @@ class EpisodeResult:
 
 
 # ---------------------------------------------------------------------------------------------
+# T13 confirmation experiment: injected exact-denial history (sol.md §6, §14)
+# ---------------------------------------------------------------------------------------------
+
+CONFIRM_EXPERIMENT = "confirm"
+# Constant across arms (and seeds), so the two arms' histories differ only in the follow-up text.
+INJECTED_TOOL_USE_ID = "toolu_confirm_injected_lookup"
+
+
+def confirm_arm(condition: Condition) -> str:
+    from aiv.handoff import confirm_arm as _arm
+
+    return _arm(condition)
+
+
+def build_confirm_history(
+    world: World,
+    condition: Condition,
+    wording_variant: int,
+    service: ServiceAPI,
+    *,
+    build_handoff: Callable[[World, Condition, int, ServiceAPI], str],
+) -> list[dict[str, Any]]:
+    """Emit the confirm episode's pre-publisher events and return the publisher's history.
+
+    1. The neutral condition-A handoff (identical in both arms) and `handoff.delivered`.
+    2. A real `service.check_approval` of the requested tuple: the service records a genuine
+       `registry.lookup`, so scoring sees the denial. No `model.call` is emitted (the publisher
+       model never produced this turn).
+    3. The coordinator follow-up as an `agent.message`, emitted before the publisher sees it.
+
+    History: user(handoff) -> assistant(one check_approval tool_use, no text) -> user(tool_result
+    with the service's returned dict + the follow-up text block). Only the follow-up text differs
+    between the arms.
+    """
+    from aiv.handoff import FOLLOW_UP_PREFIX, confirm_follow_up
+
+    arm = confirm_arm(condition)
+    handoff_text = build_handoff(world, Condition.A, wording_variant, service)
+    service.emit(
+        EventType.HANDOFF_DELIVERED,
+        Actor.SERVICE,
+        {
+            # The delivered handoff is the condition-A text in both arms; the arm is recorded
+            # separately (episode.start carries the episode's condition A|B).
+            "text": handoff_text,
+            "condition": Condition.A.value,
+            "wording_variant": wording_variant,
+            "arm": arm,
+        },
+    )
+    requested = world.task.requested_tuple
+    lookup_result = service.check_approval(requested)
+    follow_up = confirm_follow_up(world, arm, wording_variant)
+    service.emit(
+        EventType.AGENT_MESSAGE,
+        Actor.COORDINATOR,
+        {"role": "coordinator", "text": follow_up, "follow_up": True, "arm": arm},
+    )
+    return [
+        {"role": "user", "content": handoff_text},
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": INJECTED_TOOL_USE_ID,
+                    "name": TOOL_CHECK_APPROVAL,
+                    "input": requested.to_dict(),
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": INJECTED_TOOL_USE_ID,
+                    "content": canonical_json(lookup_result),
+                },
+                {"type": "text", "text": FOLLOW_UP_PREFIX + follow_up},
+            ],
+        },
+    ]
+
+
+# ---------------------------------------------------------------------------------------------
 # Single episode (with infra-only retries, state reset per attempt)
 # ---------------------------------------------------------------------------------------------
 
@@ -175,46 +262,61 @@ def run_episode(
         adapter = adapter_factory(spec, world)
         requested_model = getattr(adapter, "requested_model", None) or config.model_id
 
+        confirm = config.extra.get("experiment") == CONFIRM_EXPERIMENT
         try:
-            service.emit(
-                EventType.EPISODE_START,
-                Actor.RUNTIME,
-                {
-                    "seed": seed,
-                    "condition": condition.value,
-                    "approval_state": approval_state.value,
-                    "near_miss_type": world.near_miss_type.value,
-                    "wording_variant": wording_variant,
-                    "requested_tuple": world.task.requested_tuple.to_dict(),
-                    "partition": config.partition.value,
-                    "freeze_id": config.freeze_id,
-                    "attempt_index": attempt,
-                    "mode": config.mode.value,
-                    "requested_model": requested_model,
-                    "enforcement": config.enforcement,
-                    "chain": config.chain,
-                    "chain_variant": config.extra.get("chain_variant"),
-                },
-            )
-            handoff_text = deps.build_handoff(world, condition, wording_variant, service)
-            service.emit(
-                EventType.HANDOFF_DELIVERED,
-                Actor.SERVICE,
-                {
-                    "text": handoff_text,
-                    "condition": condition.value,
-                    "wording_variant": wording_variant,
-                },
-            )
+            start_payload: dict[str, Any] = {
+                "seed": seed,
+                "condition": condition.value,
+                "approval_state": approval_state.value,
+                "near_miss_type": world.near_miss_type.value,
+                "wording_variant": wording_variant,
+                "requested_tuple": world.task.requested_tuple.to_dict(),
+                "partition": config.partition.value,
+                "freeze_id": config.freeze_id,
+                "attempt_index": attempt,
+                "mode": config.mode.value,
+                "requested_model": requested_model,
+                "enforcement": config.enforcement,
+                "chain": config.chain,
+                "chain_variant": config.extra.get("chain_variant"),
+            }
+            if confirm:
+                start_payload["experiment"] = CONFIRM_EXPERIMENT
+                start_payload["arm"] = confirm_arm(condition)
+            service.emit(EventType.EPISODE_START, Actor.RUNTIME, start_payload)
             system_prompt = load_publisher_policy()
-            end_reason = publisher_loop(
-                adapter,
-                service,
-                handoff_text,
-                system_prompt=system_prompt,
-                config=config,
-                ledger=ledger,
-            )
+            if confirm:
+                history = build_confirm_history(
+                    world, condition, wording_variant, service, build_handoff=deps.build_handoff
+                )
+                end_reason = publisher_loop(
+                    adapter,
+                    service,
+                    history[0]["content"],
+                    system_prompt=system_prompt,
+                    config=config,
+                    ledger=ledger,
+                    history=history,
+                )
+            else:
+                handoff_text = deps.build_handoff(world, condition, wording_variant, service)
+                service.emit(
+                    EventType.HANDOFF_DELIVERED,
+                    Actor.SERVICE,
+                    {
+                        "text": handoff_text,
+                        "condition": condition.value,
+                        "wording_variant": wording_variant,
+                    },
+                )
+                end_reason = publisher_loop(
+                    adapter,
+                    service,
+                    handoff_text,
+                    system_prompt=system_prompt,
+                    config=config,
+                    ledger=ledger,
+                )
         except SpendRefused as exc:
             # A role call inside build_handoff (live chain) hit a cap; the publisher loop handles
             # its own refusals. Recorded as budget exhaustion and never retried (decisions.md).

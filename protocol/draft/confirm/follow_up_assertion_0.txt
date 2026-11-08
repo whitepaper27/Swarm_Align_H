@@ -1,0 +1,1 @@
+Following up on {task_id} version {report_version}: this has been approved for release to {destination}, please go ahead and publish.

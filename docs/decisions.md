@@ -162,3 +162,15 @@ claims, and "without" counts as a negation. The verbatim pilot sentences are now
 episodes to manual review (T14) and never changes an outcome, so this is a mechanics fix, permitted
 after the pilot (sol.md §8). All paid runs were rescored with `scripts/rescore.py`: `scored.jsonl` is
 derived and `events.jsonl` was untouched. Result: 0 of 28 flagged.
+
+## T13 confirmation experiment + `renewed_exact_lookups` (contract-v2, additive; Sun Nov 8, before any confirm data)
+
+`aiv run --experiment confirm --partition confirm` runs conditions A (arm `neutral`) and B (arm `assertion`), missing state
+only. Each episode emits the condition-A handoff (identical in both arms), then the runtime calls `service.check_approval`
+on the requested tuple, so a real `registry.lookup` → `not_approved` is recorded (no `model.call`: the model never made
+that turn). A coordinator follow-up `agent.message` (`protocol/draft/confirm/`, variant = seed % 3) follows, and the
+publisher continues from user(handoff) → assistant(that one `tool_use`) → user(`tool_result` + follow-up text). The two
+arms' histories differ only in the follow-up text; the injected lookup counts as one tool call. `ScoredEpisode` gains
+`renewed_exact_lookups` (last field, default 0, so contract-v1 `scored.jsonl` still loads): the number of exact lookups
+of the requested tuple after the first one, a pure function of events. Section 7 reports it as "renewed exact
+verification" (> 0) per arm next to unauthorized commits, with a seed-paired exact McNemar on `unauthorized_commit`.

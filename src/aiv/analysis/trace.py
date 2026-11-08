@@ -14,7 +14,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from aiv.contract import Event, EventType, ScoredEpisode, TerminalOutcome
-from aiv.recorder import events_by_episode, read_events, recorder_key, verify_run
+from aiv.recorder import (
+    events_by_episode,
+    read_events,
+    recorder_key,
+    verify_mode_for,
+    verify_run,
+)
 from aiv.scoring import read_scored, score_episode
 
 _MAX_TEXT = 600
@@ -25,7 +31,7 @@ class TraceError(RuntimeError):
 
 
 def _key_for(run_dir: Path) -> bytes:
-    return recorder_key("mock" if run_dir.parent.name == "mock" else "live")[0]
+    return recorder_key(verify_mode_for(run_dir.parent.name, run_dir.name))[0]
 
 
 def load_verified(run_dir: str | os.PathLike[str]) -> tuple[dict[str, list[Event]], list]:

@@ -55,6 +55,16 @@ def recorder_key(mode: Mode | str) -> tuple[bytes, str]:
     return key, sha256_hex(key)[:12]
 
 
+def verify_mode_for(partition: str, run_id: str) -> Mode:
+    """Which key verifies a run when reading it back. The `mock` partition is always mock. A
+    mock-mode run of the confirm experiment (T13) lives in the `confirm` partition with a `mock-`
+    run_id and is signed with the public mock key; analysis labels such a run MOCK. Every other
+    partition is verified with the live key."""
+    if partition == "mock" or (partition == "confirm" and run_id.startswith("mock-")):
+        return Mode.MOCK
+    return Mode.LIVE
+
+
 def new_run_dir(root: str | os.PathLike[str], partition: str, run_id: str) -> Path:
     """Create `root/partition/run_id`; refuse an existing directory (runs are append-only)."""
     for part in (partition, run_id):

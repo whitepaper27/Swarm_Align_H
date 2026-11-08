@@ -16,7 +16,7 @@ from pathlib import Path
 
 from aiv.agents import AnthropicAdapter, MockAdapter, mixed_policy_for
 from aiv.contract import ApprovalState, Condition, Mode, Partition, RunConfig
-from aiv.runtime import Deps, EpisodeSpec, run_batch
+from aiv.runtime import CONFIRM_EXPERIMENT, Deps, EpisodeSpec, run_batch
 
 AUTH_ROOT_ENV = "AIV_AUTH_ROOT"
 DEFAULT_AUTH_ROOT = "protocol/authorizations"
@@ -224,6 +224,21 @@ def make_chain_handoff(*, adversarial: bool, role_factory, max_tokens: int = 512
     return build
 
 
+CONFIRM_CONDITIONS = (Condition.A, Condition.B)  # neutral, assertion
+CONFIRM_STATES = (ApprovalState.MISSING,)
+
+
+def _confirm_args_error(args: argparse.Namespace, partition: Partition) -> str | None:
+    """The confirm partition holds only confirm-experiment episodes, and vice versa."""
+    if args.experiment != CONFIRM_EXPERIMENT:
+        return "the confirm partition requires --experiment confirm"
+    if partition != Partition.CONFIRM:
+        return "--experiment confirm requires --partition confirm"
+    if args.chain:
+        return "--experiment confirm cannot be combined with --chain"
+    return None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aiv")
     sub = parser.add_subparsers(dest="cmd")
@@ -251,6 +266,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="worker->coordinator chain instead of scripted handoffs (conditions A/C)",
     )
+    run_p.add_argument(
+        "--experiment",
+        choices=[CONFIRM_EXPERIMENT],
+        default=None,
+        help="T13 confirmation: injected exact denial, then neutral (A) vs assertion (B) "
+        "follow-up; missing state only; requires --partition confirm",
+    )
 
     return parser
 
@@ -263,12 +285,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(f"unknown partition {args.partition!r}", file=sys.stderr)
         return 2
     seeds = _parse_seeds(args.seeds)
-    default_conds = (Condition.A, Condition.C) if args.chain else RunConfig().conditions
+    confirm = args.experiment == CONFIRM_EXPERIMENT
+    if confirm or partition == Partition.CONFIRM:
+        if err := _confirm_args_error(args, partition):
+            print(err, file=sys.stderr)
+            return 2
+    if confirm:
+        default_conds, default_states = CONFIRM_CONDITIONS, CONFIRM_STATES
+    else:
+        default_conds = (Condition.A, Condition.C) if args.chain else RunConfig().conditions
+        default_states = RunConfig().approval_states
     conditions = _parse_conditions(args.conditions) if args.conditions else default_conds
     if args.chain and any(c not in (Condition.A, Condition.C) for c in conditions):
         print("chain runs use conditions A and C only", file=sys.stderr)
         return 2
-    states = _parse_states(args.states) if args.states else RunConfig().approval_states
+    states = _parse_states(args.states) if args.states else default_states
+    if confirm and (conditions != CONFIRM_CONDITIONS or states != CONFIRM_STATES):
+        print(
+            "confirm experiment runs conditions AB (neutral, assertion) and state missing only",
+            file=sys.stderr,
+        )
+        return 2
 
     def freeze_error() -> str | None:
         if args.freeze_id:
@@ -290,7 +327,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
         approval_states=states,
         chain=bool(args.chain),
         freeze_id=args.freeze_id,
-        extra={"chain_variant": args.chain} if args.chain else {},
+        extra=(
+            {"chain_variant": args.chain}
+            if args.chain
+            else {"experiment": CONFIRM_EXPERIMENT}
+            if confirm
+            else {}
+        ),
     )
 
     deps = Deps()

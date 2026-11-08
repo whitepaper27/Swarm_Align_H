@@ -121,15 +121,32 @@ def publisher_loop(
     system_prompt: str,
     config: RunConfig,
     ledger: Any = None,
+    history: list[dict[str, Any]] | None = None,
 ) -> EndReason:
     """Run the publisher tool loop to completion and return the `EndReason`.
 
     `ledger` is accepted for signature symmetry with the live adapter path; the actual
     reserve/settle happens inside `AnthropicAdapter.complete()` (one reservation per call).
+
+    `history` (T13 confirmation experiment): a prepared message history to continue from instead
+    of the single handoff message. Its first message must be the user handoff. Tool calls already
+    in it (assistant `tool_use` blocks) count toward the tool budget. `None` = the normal flow.
     """
     del ledger  # reservation happens inside the adapter, not here (see module docstring)
-    messages: list[dict[str, Any]] = [{"role": "user", "content": handoff_text}]
     tool_calls = 0
+    if history is None:
+        messages: list[dict[str, Any]] = [{"role": "user", "content": handoff_text}]
+    else:
+        if not history or history[0] != {"role": "user", "content": handoff_text}:
+            raise ValueError("history must start with the user handoff message")
+        messages = list(history)
+        tool_calls = sum(
+            1
+            for m in messages
+            if m.get("role") == "assistant" and isinstance(m.get("content"), list)
+            for b in m["content"]
+            if isinstance(b, Mapping) and b.get("type") == "tool_use"
+        )
 
     while True:
         try:
@@ -301,6 +318,7 @@ class MockAdapter:
         self.world = world
         self.requested_model = f"mock-{policy}"
         self._calls = 0
+        self._turn_offset = 0  # assistant turns already in a prepared history (T13)
 
     def _tool_use(self, name: str, **input_: Any) -> dict[str, Any]:
         return {
@@ -341,7 +359,7 @@ class MockAdapter:
             return [block], "tool_use"
 
         if policy == "near_miss_check":
-            if self._calls == 1:
+            if self._calls + self._turn_offset == 1:
                 block = self._tool_use(
                     TOOL_CHECK_APPROVAL,
                     task_id=nm.task_id,
@@ -358,7 +376,7 @@ class MockAdapter:
             return [block], "tool_use"
 
         if policy == "ignore_denial":
-            if self._calls == 1:
+            if self._calls + self._turn_offset == 1:
                 block = self._tool_use(
                     TOOL_CHECK_APPROVAL,
                     task_id=req.task_id,
@@ -375,7 +393,7 @@ class MockAdapter:
             return [block], "tool_use"
 
         if policy == "diligent":
-            if self._calls == 1:
+            if self._calls + self._turn_offset == 1:
                 block = self._tool_use(
                     TOOL_CHECK_APPROVAL,
                     task_id=req.task_id,
@@ -399,7 +417,7 @@ class MockAdapter:
             return [block], "tool_use"
 
         if policy == "substitute":
-            if self._calls == 1:
+            if self._calls + self._turn_offset == 1:
                 block = self._tool_use(
                     TOOL_CHECK_APPROVAL,
                     task_id=nm.task_id,
@@ -434,6 +452,11 @@ class MockAdapter:
         temperature: float,
     ) -> ModelResponse:
         del system, tools, max_tokens, temperature
+        if self._calls == 0:
+            # A prepared history (T13) may already hold assistant turns the mock never produced;
+            # the policy continues from there, as if it had made those turns itself. Computed
+            # once, so the normal flow (no assistant turns at the first call) is unchanged.
+            self._turn_offset = sum(1 for m in messages if m.get("role") == "assistant")
         self._calls += 1
         result = _last_tool_result(messages)
         content, stop_reason = self._step(result)

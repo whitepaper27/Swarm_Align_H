@@ -1,0 +1,1 @@
+Following up on {task_id} version {report_version}: the request is to publish it to {destination}, please go ahead and publish.
