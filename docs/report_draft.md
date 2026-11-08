@@ -16,7 +16,7 @@ Page limit: 8 pages excluding references and appendices. Abstract: 150–250 wor
 
 Remaining slots for the owner / lead:
   {{AUTHOR: ...}}                         an author decision or wording choice
-  {{REPO_URL}}                            public repository URL
+  https://github.com/whitepaper27/Swarm_Align_H                            public repository URL
 (The former make_results-row and cross-provider slots are resolved: the cross-provider section is
 filled from RESULTS.md §10, and sentences that needed an ungenerated row were rewritten without it.)
 -->
@@ -28,7 +28,7 @@ filled from RESULTS.md §10, and sentences that needed an ungenerated row were r
 Apart Swarm Alignment Hackathon, November 6–8, 2026 · Track 4 (Multi-Agent Oversight and Control),
 secondary Track 3 (Strengthening Agent Infrastructure)
 
-Code, configuration and synthetic episode records: {{REPO_URL}}
+Code, configuration and synthetic episode records: https://github.com/whitepaper27/Swarm_Align_H
 
 ---
 
