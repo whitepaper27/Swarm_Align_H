@@ -1,0 +1,88 @@
+{
+  "config": {
+    "approval_states": [
+      "approved",
+      "missing"
+    ],
+    "chain": true,
+    "conditions": [
+      "A",
+      "C"
+    ],
+    "enforcement": false,
+    "extra": {
+      "chain_variant": "adversarial"
+    },
+    "freeze_id": "F20261108-1627-c74d92a0",
+    "max_tokens": 1024,
+    "mode": "live",
+    "model_id": "claude-haiku-4-5-20251001",
+    "partition": "live",
+    "retry_max": 2,
+    "runs_root": "runs",
+    "seeds": [
+      320,
+      321,
+      322,
+      323,
+      324,
+      325,
+      326,
+      327,
+      328,
+      329,
+      330,
+      331
+    ],
+    "temperature": 1.0,
+    "tool_budget": 8,
+    "wording_variants": [
+      0,
+      1,
+      2
+    ]
+  },
+  "freeze_id": "F20261108-1627-c74d92a0",
+  "git_commit": "9110deb971eb92415a99c9dc4013dd0ceae55076",
+  "model_ids": {
+    "requested": "claude-haiku-4-5-20251001"
+  },
+  "prompt_sha256": {
+    "chain/coordinator.md": "522056a50aa5fd10c79c329bc8bde582cb898eaeace6f509af2463b4cd75373e",
+    "chain/worker_adversarial.md": "df851529b7bb8e540cae237b3188bf54ae8d9e11d2925370c436d172aba468cd",
+    "chain/worker_ordinary.md": "21a4938648900d88c5f8caf23e797c19764d3b63510df173853d3f33c172dcd6",
+    "handoff/coordinator_assertion_0.txt": "7a878858f4516e9964ee76a25cb175e30f2d93fe9d6c587b8ebd7c6670f71a91",
+    "handoff/coordinator_assertion_1.txt": "f7b23f9f8a78cb7e4512e5e918e2c4e5a12d0f6e4a4dd10a320e61fef74cb8bf",
+    "handoff/coordinator_assertion_2.txt": "63b6270edeea5e968fd372c1144b7aa90974a04b90b052a68b90bdd7388fa313",
+    "handoff/coordinator_neutral_0.txt": "b411657cf3de424825a33febda36812324b9f605116c25a758f05174e8015ccd",
+    "handoff/coordinator_neutral_1.txt": "06d3ec747dfdbfc3a88995d88272faaf7ed21ae168adb8f75806db1d1b4b1294",
+    "handoff/coordinator_neutral_2.txt": "4375f783bf9cd1350e9cd213184f059fab3c4fe43f2072af10f46656bb286ed1",
+    "handoff/near_miss_older_version.txt": "7efdcfa6ec5f9681c1c102e008f3780a9dd675d15b39a6b277b1d27d4e6eb1de",
+    "handoff/near_miss_other_destination.txt": "6d34ea2850eddba44abb0945f7d24247d2c5064c9d3a356cb43b91444e8e2b14",
+    "handoff/padding_0.txt": "ab08e62a3f05c07b8b514446881d579f28ca6b89a5495a2ff9d2430371a3374b",
+    "handoff/padding_1.txt": "5d8f7523d3e3d4e9293cce02101c3dfd1624bc634f86c5b11999b091c890d9ae",
+    "handoff/padding_2.txt": "20299500175f298e16cf938b33f62880f3da1b3db519b6697f0953f7afe90b12",
+    "handoff/provenance.txt": "b0b358e1d9954982326447bc337bc2bcdc60d545ea8891cded489ea37eba16be",
+    "handoff/worker_report_ready.txt": "9f5b042b6942913b4ccd3d03337153e055b7175c5a88a212b8edf3c57443b6bb",
+    "publisher_policy.md": "85a0afe77ed1b5f238ea9bc4e090ce5b7a2cd090420187cdfdbffc1c73bd3345"
+  },
+  "retry_policy": {
+    "retried_on": "infra_error",
+    "retry_max": 2
+  },
+  "run_id": "live-live-20261108T163713Z-d7bc17",
+  "seeds": [
+    320,
+    321,
+    322,
+    323,
+    324,
+    325,
+    326,
+    327,
+    328,
+    329,
+    330,
+    331
+  ]
+}
