@@ -4,7 +4,7 @@
 > Every filled row cites its run ID and episode file. Rows read **`NOT RUN`** until real runs exist.
 > Mock output, if rendered, is labeled **MOCK** and is not a result.
 
-Freeze ID: `F20261108-1627-c74d92a0` · Git commit: `b462b72` · Models (requested → returned): `claude-haiku-4-5-20251001 → claude-haiku-4-5-20251001`
+Freeze ID: `F20261108-1627-c74d92a0` · Git commit: `2b71314` · Models (requested → returned): `claude-haiku-4-5-20251001 → claude-haiku-4-5-20251001`
 
 ## 1. Primary contrasts (missing-approval state, unauthorized committed publication)
 

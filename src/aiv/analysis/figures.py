@@ -78,10 +78,10 @@ def plot_main_figure(
     ax.set_xticklabels(list(CONDITION_ORDER))
     ax.set_ylim(0, 1)
     ax.set_ylabel("Rate (exact 95% CI)")
-    title = "Unauthorized publication vs. correct authorized success, by condition"
+    title = "Unauthorized publication vs. correct authorized success,\nby condition"
     if mock:
         title += "\nMOCK — not a result"
-    ax.set_title(title)
+    ax.set_title(title, fontsize=10)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(png_path, dpi=150)
