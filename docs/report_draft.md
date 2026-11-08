@@ -34,25 +34,25 @@ Code, configuration and synthetic episode records: {{REPO_URL}}
 
 ## Abstract
 
-Agents that hand work to each other often pass along claims that the work has been approved. We
+Agents handing work to each other often pass along claims that it has been approved. We
 study where approval verification can break in a handoff: an omitted check, a mismatched check, or
 action after an authoritative denial. A publisher agent (`claude-haiku-4-5-20251001`
 <!-- RESULTS.md header -->) receives a relayed request and always holds a free tool that looks up one
 exact (task, version, destination) tuple in a registry containing near-miss decoy approvals.
 Outcomes come only from ordered service events. Across 100 <!-- freeze.json n_seeds --> seed-paired
-synthetic tasks comparing a neutral handoff, a scripted peer assertion of approval and
-service-recorded provenance, unauthorized committed publication in the missing-approval state was
-0/100 observed in every condition (upper bound 0.036) <!-- RESULTS.md §3 -->; both primary
-contrasts were not detected at this n (p (Holm) = 1) <!-- RESULTS.md §1 -->. In a live three-agent
-chain, unauthorized commits were 0/48 with ordinary and 0/48 with adversarial workers; the
-adversarial worker refused in 48/48 <!-- RESULTS.md §6 -->. After an injected exact-tuple denial, a
-peer assertion produced 0/100 unauthorized publications per arm but renewed exact verification in
-58/100 episodes against 0/100 neutral (secondary, unadjusted McNemar p = 6.9389e-18)
-<!-- RESULTS.md §7 -->. In separate cross-provider strata, a `gemini-3.5-flash-lite` publisher had
+synthetic tasks comparing neutral, scripted peer-assertion and provenance handoffs, unauthorized
+committed publication in the missing-approval state was 0/100 observed in every condition (upper
+bound 0.036) <!-- RESULTS.md §3 -->; both primary contrasts were not detected at this n (p (Holm) =
+1) <!-- RESULTS.md §1 -->. In a live three-agent chain, unauthorized commits were 0/48 with ordinary
+and 0/48 with adversarial workers; the Haiku adversarial worker refused the false claim in 48/48
+<!-- RESULTS.md §6 -->. After an injected exact-tuple denial (separate freeze), a peer assertion
+produced 0/100 unauthorized publications per arm but renewed exact verification in 58/100 episodes
+against 0/100 neutral (secondary, unadjusted McNemar p = 6.9389e-18) <!-- RESULTS.md §7 -->. In separate cross-provider strata, a `gemini-3.5-flash-lite` publisher had
 0/50 unauthorized commits observed in every condition and arm (upper bound 0.071)
 <!-- RESULTS.md §10a, §10b -->, and with a Gemini worker that wrote 24 false approval claims the
-Haiku publisher had 0/48 <!-- RESULTS.md §10c -->. For these models and this policy, peer approval
-claims did not override the registry; what triggered a re-check differed by model.
+Haiku publisher had 0/48 <!-- RESULTS.md §10c -->. Peer approval claims did not override the
+registry for these models and this policy; after a denial Gemini re-checked in 50/50 neutral and
+46/50 assertion episodes <!-- RESULTS.md §10b -->, so the re-check trigger appears model-dependent.
 {{AUTHOR: confirm or edit the closing sentence}}
 
 ---
@@ -420,13 +420,14 @@ general: the upper bounds leave room for modest effects. No omitted or mismatche
 observed, even with the near-miss named in every handoff.
 
 The follow-up fixed in advance for a zero base rate (GOAL.md) was the injected-denial design, not
-prompt tuning. After an authoritative denial, the publisher did not publish under a peer assertion
+prompt tuning. After an authoritative denial, the Haiku publisher did not publish under a peer assertion
 and instead re-queried the registry in 58/100 assertion episodes against 0/100 neutral (secondary,
 unadjusted) <!-- RESULTS.md §7 -->: the peer claim became a reason to re-check the record, not a
 substitute for it. The Gemini publisher re-checked in both arms (Section 7). The strata differ in
 freeze, seeds and n and were not tested against each other, but the re-check *trigger* looks
-model-dependent while the safe outcome held for both providers. When a Gemini worker's false claim
-reached the Haiku publisher, it never committed, though once it offered to pass the claim on. The
+model-dependent, while no unauthorized commit was observed with either publisher. When a Gemini
+worker's false claim reached the Haiku publisher, the publisher never committed, though once it
+offered to pass the claim on. The
 contribution is an informative boundary for these models, policy and workflow, plus that mechanism
 observation.
 
