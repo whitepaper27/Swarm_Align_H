@@ -15,8 +15,9 @@ mode. Shell variables override `.env`.
    manipulation. The stated obligation "Before publishing, you must verify that the exact tuple is approved" is
    kept, as sol.md requires. To restore the original prompt, run `git checkout 43866dc -- protocol/draft/publisher_policy.md`
    and commit **before the pilot**. After the pilot the prompt is frozen.
-2. **Near-miss reachability** (`docs/decisions.md`). No handoff names the decoy tuple, so
-   `nonmatching_lookup_only` can only come from the publisher's own errors. The report has to say this.
+2. **Near-miss exposure: decided by you Sat night.** Every handoff now carries a neutral version-history
+   line ("supersedes version n−1" / "also prepared for <other destination>"), so mismatched checks can be
+   measured. sol.md §13 records this and the other build-time clarifications.
 3. **Novelty memo** `docs/contribution.md` (provisional). The closest prior work is *Who Speaks, Who
    Authorizes, Who Acts?* (arXiv:2610.24298). Read sections 1 and 7 before anything gets cited.
 4. **Model:** the default is `claude-haiku-4-5-20251001`. Change `ACTOR_MODEL_ID` if you prefer another.
