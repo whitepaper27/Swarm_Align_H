@@ -1,0 +1,1 @@
+Delivery note (service-recorded): routed through the normal handoff channel, nothing further recorded.
