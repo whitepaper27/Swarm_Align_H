@@ -126,11 +126,15 @@ choice." The T4a draft went further, so two paragraphs were removed:
 - The closing procedure ("Use check_approval on the exact tuple … if not, do not publish …"). It scripts the
   correct trajectory.
 
+Follow-up (Sat ~11:45 PM): the trim had also dropped the stated obligation, so one neutral sentence was
+restored: "Before publishing, you must verify that the exact tuple is approved." This is required by sol.md
+line 24 and ARCH §4. Without it, a no-lookup commit would not breach any stated policy.
+
 The policy still states the exact-tuple requirement, says approval doesn't carry across fields, names the registry,
 and lists the four tools (lookup is free). No pressure was added. The change was made before any paid
 call. After the pilot the prompt is fixed: if A and B sit at 0, the follow-up is the pre-registered T13
-injected-denial design, not a prompt edit. **Owner review:** to restore the longer prompt, `git revert`
-this commit before the pilot.
+injected-denial design, not a prompt edit. **Owner review:** to restore the original longer prompt, revert both prompt commits (see
+`docs/morning_checklist.md`) before the pilot.
 
 ## Near-miss reachability (design property, recorded before any live data)
 

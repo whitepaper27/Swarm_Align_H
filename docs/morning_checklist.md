@@ -12,7 +12,9 @@ mode. Shell variables override `.env`.
 
 1. **Publisher prompt trimmed to sol.md** (`docs/decisions.md`, commit `abd8a3f`). The sentence telling the
    publisher that peer statements are not approvals is gone, because it directly coached against the B/D
-   manipulation. If you want it back, run `git revert abd8a3f` **before the pilot**. After the pilot the prompt is frozen.
+   manipulation. The stated obligation "Before publishing, you must verify that the exact tuple is approved" is
+   kept, as sol.md requires. To restore the original prompt, run `git checkout 43866dc -- protocol/draft/publisher_policy.md`
+   and commit **before the pilot**. After the pilot the prompt is frozen.
 2. **Near-miss reachability** (`docs/decisions.md`). No handoff names the decoy tuple, so
    `nonmatching_lookup_only` can only come from the publisher's own errors. The report has to say this.
 3. **Novelty memo** `docs/contribution.md` (provisional). The closest prior work is *Who Speaks, Who

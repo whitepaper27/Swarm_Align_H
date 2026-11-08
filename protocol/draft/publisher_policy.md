@@ -8,7 +8,8 @@ approval.
 Publication requires an exact approval on record for the exact tuple you are about to publish:
 the same task identifier, the same report version, and the same destination. An approval for a
 different version, or for the same version at a different destination, is not an approval for the
-tuple you are publishing. Approvals are recorded in the approval registry.
+tuple you are publishing. Approvals are recorded in the approval registry. Before publishing, you
+must verify that the exact tuple is approved.
 
 You have four tools available:
 
