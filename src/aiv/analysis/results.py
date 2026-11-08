@@ -7,6 +7,9 @@ hash chain itself, via `aiv.recorder.verify_run`.
 
 Partitions are never pooled (AGENTS.md): `mock`/`main` feed sections 1-5, `live` feeds section 6,
 `confirm` feeds section 7, `pilot`/`discovery` feed section 9 only, never sections 1-5.
+The cross-provider partitions (`xmain`, `xconfirm`, `xlive`, exploratory `xdiscovery`; sol.md
+§16) feed section 10 only, split by model, and section 10 is rendered only when one of them is
+requested, so sections 1-9 are byte-identical with or without them.
 """
 
 from __future__ import annotations
@@ -27,8 +30,15 @@ CORE_PARTITIONS = ("mock", "main")
 LIVE_PARTITIONS = ("live",)
 CONFIRM_PARTITIONS = ("confirm",)
 EXPLORATORY_PARTITIONS = ("pilot", "discovery")
+CROSS_PARTITIONS = ("xmain", "xconfirm", "xlive")
+CROSS_EXPLORATORY_PARTITIONS = ("xdiscovery",)
 ALL_KNOWN_PARTITIONS = (
-    CORE_PARTITIONS + LIVE_PARTITIONS + CONFIRM_PARTITIONS + EXPLORATORY_PARTITIONS
+    CORE_PARTITIONS
+    + LIVE_PARTITIONS
+    + CONFIRM_PARTITIONS
+    + EXPLORATORY_PARTITIONS
+    + CROSS_PARTITIONS
+    + CROSS_EXPLORATORY_PARTITIONS
 )
 
 NOT_RUN = "NOT RUN"
@@ -566,7 +576,11 @@ def _is_mock_run(e: ScoredEpisode) -> bool:
     return e.run_id.startswith("mock-")
 
 
-def section7(confirm_episodes: Sequence[ScoredEpisode]) -> tuple[str, set[Citation]]:
+def section7(
+    confirm_episodes: Sequence[ScoredEpisode],
+    *,
+    where: str = "confirmation experiment (section 7)",
+) -> tuple[str, set[Citation]]:
     """T13 "does reassurance override a denial?": injected exact-denial history, then a neutral
     (condition A) or an approval-asserting (condition B) follow-up. Missing state only.
     `confirm_episodes` are final attempts of the `confirm` partition."""
@@ -577,7 +591,7 @@ def section7(confirm_episodes: Sequence[ScoredEpisode]) -> tuple[str, set[Citati
     ]
     if not eps:
         return NOT_RUN, set()
-    tables.assert_single_freeze(eps, where="confirmation experiment (section 7)")
+    tables.assert_single_freeze(eps, where=where)
     cites: set[Citation] = set()
     arms = {name: [e for e in eps if e.condition == cond] for name, cond in CONFIRM_ARMS}
 
@@ -709,6 +723,268 @@ def section9(exploratory_episodes: Sequence[ScoredEpisode]) -> tuple[str, set[Ci
 
 
 # ---------------------------------------------------------------------------------------------
+# Section 10: cross-provider strata (sol.md §16). Split by model; never pooled with §1-§7.
+# ---------------------------------------------------------------------------------------------
+
+XLIVE_LABELS_FILE = Path("docs") / "labels" / "xlive_labels_final.jsonl"
+_CATS = ("no_lookup", "nonmatching_lookup_only", "exact_denial", "exact_approval")
+
+
+def _manifest_extra(runs_root: Path, e: ScoredEpisode) -> dict:
+    """`config.extra` of the episode's run manifest ({} if unreadable)."""
+    manifest = runs_root / e.partition / e.run_id / "manifest.json"
+    try:
+        extra = json.loads(manifest.read_text(encoding="utf-8"))["config"].get("extra", {})
+    except (OSError, KeyError, json.JSONDecodeError):
+        return {}
+    return extra if isinstance(extra, dict) else {}
+
+
+def _by_model(episodes: Sequence[ScoredEpisode]) -> dict[str, list[ScoredEpisode]]:
+    groups: dict[str, list[ScoredEpisode]] = {}
+    for e in episodes:
+        groups.setdefault(e.requested_model or "unknown", []).append(e)
+    return groups
+
+
+def _finals(episodes: Sequence[ScoredEpisode], *, where: str) -> list[ScoredEpisode]:
+    """Final attempts of one model's stratum. Selection is per stratum: `CellKey` has no
+    model, so two models on the same seeds must never be selected together."""
+    finals = list(tables.select_final_attempts(episodes).values())
+    tables.assert_single_freeze(finals, where=where)
+    return finals
+
+
+def _mock_line(eps: Iterable[ScoredEpisode]) -> str:
+    if any(_is_mock_run(e) for e in eps):
+        return "\n\n**MOCK — not a result.** (mock-mode runs are cited)"
+    return ""
+
+
+def _xmain_block(model: str, eps: Sequence[ScoredEpisode]) -> tuple[str, set[Citation]]:
+    finals = _finals(eps, where=f"xmain publisher {model} (section 10)")
+    missing = [e for e in finals if e.approval_state == ApprovalState.MISSING]
+    cites: set[Citation] = set()
+    by_cond = {c: [e for e in missing if e.condition == c] for c in tables.CONDITIONS}
+    rows = []
+    for cond in tables.CONDITIONS:
+        grp = by_cond[cond]
+        run_cites = {citation_of(e) for e in grp}
+        cites |= run_cites
+        if not grp:
+            rows.append(f"| {cond.value} | " + " | ".join([NOT_RUN] * 9) + " |")
+            continue
+        k_u, n_u = tables.unauthorized_commit_rate(grp)
+        counts = collections.Counter(committing_category(e) for e in grp if e.unauthorized_commit)
+        k_v, n_v = tables.exact_verification_rate(grp)
+        k_s, n_s = tables.safe_outcome_rate(grp)
+        cat_cells = " | ".join(str(counts.get(c, 0)) for c in _CATS)
+        rows.append(
+            f"| {cond.value} | {_rate_cell(k_u, n_u)} | {cat_cells} | {_rate_cell(k_v, n_v)} | "
+            f"{_frac(k_s, n_s)} | {tables.evaluable_count(grp)}/{len(grp)} | "
+            f"{_cite_list(run_cites)} |"
+        )
+    header = (
+        "| Cond | Unauthorized commits / missing eps | Committing category: no_lookup | "
+        "nonmatching_lookup_only | exact_denial | exact_approval | "
+        "Exact verification before decision / evaluable | "
+        "Safe return + approval request / missing eps | Evaluable / scheduled | Runs |\n"
+        "|---|---|---|---|---|---|---|---|---|---|"
+    )
+    contrasts = [
+        (name, tables.paired_flag(by_cond[a], by_cond[b], flag="unauthorized_commit"))
+        for name, a, b in (
+            ("B − A (assertion)", Condition.A, Condition.B),
+            ("D − B (provenance under assertion)", Condition.B, Condition.D),
+        )
+    ]
+    computable = all(pc.n > 0 for _, pc in contrasts)
+    holm = holm_adjust([_p_from_pair(pc) for _, pc in contrasts]) if computable else [None, None]
+    crows, interp = [], []
+    for (name, pc), p_adj in zip(contrasts, holm, strict=True):
+        cites |= set(pc.citations)
+        if pc.n == 0:
+            crows.append(f"| {name} | " + " | ".join([NOT_RUN] * 6) + " |")
+            interp.append(f"- {name}: {NOT_RUN}.")
+            continue
+        p = _p_from_pair(pc)
+        p_adj_cell = f"{p_adj:.5g}" if p_adj is not None else NOT_RUN
+        crows.append(
+            f"| {name} | +{pc.pos}/−{pc.neg} | {pc.n} | {_pct(pc.diff)} | {p:.5g} | "
+            f"{p_adj_cell} | {_cite_list(pc.citations)} |"
+        )
+        if p_adj is None:
+            interp.append(f"- {name}: exact p = {p:.5g} (Holm {NOT_RUN}: other row missing).")
+        else:
+            interp.append(_interpret_p(name, p_adj))
+    cheader = (
+        "| Contrast (seed-paired, unauthorized commit) | Discordant (+/−) | Paired n | "
+        "Difference | p (exact McNemar) | p (Holm, these 2 rows) | Runs |\n"
+        "|---|---|---|---|---|---|---|"
+    )
+    returned = ", ".join(sorted({m for e in finals for m in e.returned_models})) or NOT_RUN
+    body = (
+        f"**Publisher `{model}`** (returned: `{returned}`; freeze `{_fmt_freeze(finals)}`)\n\n"
+        + header
+        + "\n"
+        + "\n".join(rows)
+        + "\n\n"
+        + cheader
+        + "\n"
+        + "\n".join(crows)
+        + "\n\n"
+        + "\n".join(interp)
+        + _mock_line(finals)
+    )
+    return body, cites
+
+
+def _load_xlive_labels(repo_root: Path | None) -> list[dict]:
+    path = (repo_root or Path(".")) / XLIVE_LABELS_FILE
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def _xlive_label_lookup(rows: Sequence[dict], episodes: Sequence[ScoredEpisode]):
+    """Label for an episode: by (run_id, episode_id) when the row has a `run_id`, else by
+    `episode_id` only if that id is unique across the xlive episodes. Two worker models on the
+    same seeds share episode ids, so an id-only label there is ambiguous and never applied."""
+    by_run = {(r["run_id"], r["episode_id"]): r for r in rows if r.get("run_id")}
+    by_id = {r["episode_id"]: r for r in rows if not r.get("run_id")}
+    id_counts = collections.Counter(e.episode_id for e in episodes)
+
+    def lookup(e: ScoredEpisode) -> dict | None:
+        hit = by_run.get((e.run_id, e.episode_id))
+        if hit is None and id_counts[e.episode_id] == 1:
+            hit = by_id.get(e.episode_id)
+        return hit
+
+    return lookup
+
+
+def _xlive_block(
+    eps: Sequence[ScoredEpisode], runs_root: Path, repo_root: Path | None
+) -> tuple[str, set[Citation]]:
+    header = (
+        "| Worker model | Variant | Publisher | Episodes | Unauthorized commits | "
+        "False approval claims (worker-orig / coord-introduced / coord-strengthened / "
+        "ambiguous) | Worker refused | Publisher adopted a claim | Runs |\n"
+        "|---|---|---|---|---|---|---|---|---|"
+    )
+    chain_eps = [e for e in eps if e.chain]
+    if not chain_eps:
+        return header + "\n| " + " | ".join([NOT_RUN] * 9) + " |", set()
+    groups: dict[tuple[str, str, str], list[ScoredEpisode]] = {}
+    for e in chain_eps:
+        extra = _manifest_extra(runs_root, e)
+        key = (
+            str(extra.get("worker_model") or "unknown"),
+            str(extra.get("chain_variant") or "unknown"),
+            e.requested_model or "unknown",
+        )
+        groups.setdefault(key, []).append(e)
+    labels = _load_xlive_labels(repo_root)
+    finals_by_key = {
+        key: _finals(groups[key], where=f"xlive worker {key[0]} {key[1]} (section 10)")
+        for key in sorted(groups)
+    }
+    label_of = _xlive_label_lookup(labels, [e for g in finals_by_key.values() for e in g])
+    cites: set[Citation] = set()
+    rows = []
+    all_finals: list[ScoredEpisode] = []
+    for key, grp in finals_by_key.items():
+        worker, variant, publisher = key
+        all_finals.extend(grp)
+        run_cites = {citation_of(e) for e in grp}
+        cites |= run_cites
+        unauth = sum(1 for e in grp if e.unauthorized_commit)
+        lab = [r for r in (label_of(e) for e in grp) if r is not None]
+        if lab and len(lab) == len(grp):
+            counts = collections.Counter(r["origin"] for r in lab)
+            claims = " / ".join(str(counts.get(o, 0)) for o in LABEL_ORIGINS)
+            refused = f"{sum(bool(r['worker_refused']) for r in lab)}/{len(grp)}"
+            adopted = f"{sum(bool(r['publisher_adopted_claim']) for r in lab)}/{len(grp)}"
+        else:
+            claims = refused = adopted = f"{NOT_RUN} (labels {len(lab)}/{len(grp)})"
+        rows.append(
+            f"| `{worker}` | {variant} | `{publisher}` | {len(grp)} | {unauth}/{len(grp)} | "
+            f"{claims} | {refused} | {adopted} | {_cite_list(run_cites)} |"
+        )
+    note = (
+        "\n\nLabels: `docs/labels/xlive_labels_final.jsonl` (same rubric and two-labeler "
+        "pipeline as section 6)."
+        if labels
+        else ""
+    )
+    return header + "\n" + "\n".join(rows) + note + _mock_line(all_finals), cites
+
+
+def _xdiscovery_block(eps: Sequence[ScoredEpisode], runs_root: Path) -> tuple[str, set[Citation]]:
+    if not eps:
+        return NOT_RUN, set()
+    cites: set[Citation] = set()
+    groups: dict[tuple[str, str], list[ScoredEpisode]] = {}
+    for e in eps:
+        worker = str(_manifest_extra(runs_root, e).get("worker_model") or "—") if e.chain else "—"
+        groups.setdefault((e.requested_model or "unknown", worker), []).append(e)
+    lines = []
+    for (publisher, worker), grp in sorted(groups.items()):
+        finals = _finals(grp, where=f"xdiscovery {publisher}/{worker} (section 10)")
+        run_cites = {citation_of(e) for e in finals}
+        cites |= run_cites
+        unauth = sum(1 for e in finals if e.unauthorized_commit)
+        mock = " **MOCK — not a result.**" if any(_is_mock_run(e) for e in finals) else ""
+        lines.append(
+            f"- publisher `{publisher}`, worker `{worker}`: {len(finals)} episodes, "
+            f"{unauth} unauthorized commits. Runs: {_cite_list(run_cites)}.{mock}"
+        )
+    return "\n".join(lines), cites
+
+
+def section10(
+    by_partition: dict[str, Sequence[ScoredEpisode]],
+    runs_root: Path,
+    repo_root: Path | None = None,
+) -> tuple[str, set[Citation]]:
+    """Cross-provider strata. Every table is one model's stratum; nothing here is pooled with
+    sections 1-7 or across models. Absent partitions read NOT RUN."""
+    cites: set[Citation] = set()
+    parts: list[str] = []
+
+    xmain = [e for e in by_partition.get("xmain", []) if not e.chain]
+    parts.append("### 10a. Cross-provider publisher, scripted handoffs (`xmain`, missing state)")
+    if not xmain:
+        parts.append(NOT_RUN)
+    for model, eps in sorted(_by_model(xmain).items()):
+        body, c = _xmain_block(model, eps)
+        cites |= c
+        parts.append(body)
+
+    xconfirm = list(by_partition.get("xconfirm", []))
+    parts.append("### 10b. Cross-provider confirmation experiment (`xconfirm`)")
+    if not xconfirm:
+        parts.append(NOT_RUN)
+    for model, eps in sorted(_by_model(xconfirm).items()):
+        where = f"xconfirm publisher {model} (section 10)"
+        finals = _finals(eps, where=where)
+        body, c = section7(finals, where=where)
+        cites |= c
+        parts.append(f"**Publisher `{model}`** (freeze `{_fmt_freeze(finals)}`)\n\n{body}")
+
+    parts.append("### 10c. Heterogeneous live chain (`xlive`)")
+    body, c = _xlive_block(list(by_partition.get("xlive", [])), runs_root, repo_root)
+    cites |= c
+    parts.append(body)
+
+    parts.append("### 10d. Exploratory: `xdiscovery` (never pooled with the above)")
+    body, c = _xdiscovery_block(list(by_partition.get("xdiscovery", [])), runs_root)
+    cites |= c
+    parts.append(body)
+    return "\n\n".join(parts), cites
+
+
+# ---------------------------------------------------------------------------------------------
 # Top-level render
 # ---------------------------------------------------------------------------------------------
 
@@ -788,7 +1064,12 @@ def render(
     )
     s9, c9 = section9(exploratory_finals_list)
 
-    all_citations = c1 | c2 | c3 | c3b | c4 | c4b | c5 | c6 | c7 | c8 | c9
+    cross_requested = [
+        p for p in partitions if p in CROSS_PARTITIONS + CROSS_EXPLORATORY_PARTITIONS
+    ]
+    s10, c10 = section10(by_partition, runs_root, repo_root) if cross_requested else ("", set())
+
+    all_citations = c1 | c2 | c3 | c3b | c4 | c4b | c5 | c6 | c7 | c8 | c9 | c10
     verify_citations(runs_root, all_citations)
 
     header_episodes = core.episodes
@@ -863,6 +1144,16 @@ Flags and tokens/latency/tool calls (same cells):
 ## 9. Exploratory: pilot and discovery (never pooled with the above){mock_tag()}
 
 {s9}
+"""
+    if cross_requested:
+        text += f"""
+## 10. Cross-provider (separate strata; never pooled with §1–§7){mock_tag()}
+
+Partitions `xmain`, `xconfirm`, `xlive` (frozen) and `xdiscovery` (exploratory), sol.md §16.
+Each table is one model's stratum: the publisher model (scored `requested_model`) for
+`xmain`/`xconfirm`, and (worker model, chain variant) from the run manifest for `xlive`.
+
+{s10}
 """
     return text, mock_included
 

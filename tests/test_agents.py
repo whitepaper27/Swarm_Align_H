@@ -460,8 +460,8 @@ def test_anthropic_adapter_success_maps_blocks_and_settles_ledger():
             self.reserved = None
             self.settled = None
 
-        def reserve(self, input_tokens_est, max_tokens, *, episode_id):
-            self.reserved = (input_tokens_est, max_tokens, episode_id)
+        def reserve(self, input_tokens_est, max_tokens, *, episode_id, model=None):
+            self.reserved = (input_tokens_est, max_tokens, episode_id, model)
             return "reservation-1"
 
         def settle(self, reservation, input_tokens, output_tokens):
@@ -492,6 +492,7 @@ def test_anthropic_adapter_success_maps_blocks_and_settles_ledger():
         },
     )
     assert ledger.reserved[2] == "ep-live-0"
+    assert ledger.reserved[3] == "claude-requested-1"  # priced by this call's model
     assert ledger.settled == ("reservation-1", 42, 7)
     assert client.messages.calls[0]["model"] == "claude-requested-1"
     del _anthropic  # imported only to document which module's errors this test is about
@@ -540,7 +541,7 @@ def test_anthropic_adapter_releases_reservation_on_failure(status):
     class FakeLedger:
         released: list[str] = []
 
-        def reserve(self, input_tokens_est, max_tokens, *, episode_id):
+        def reserve(self, input_tokens_est, max_tokens, *, episode_id, model=None):
             return "res-1"
 
         def settle(self, reservation, input_tokens, output_tokens):

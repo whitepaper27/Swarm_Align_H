@@ -55,12 +55,18 @@ def recorder_key(mode: Mode | str) -> tuple[bytes, str]:
     return key, sha256_hex(key)[:12]
 
 
+_MOCK_DRY_RUN_PARTITIONS = ("confirm", "xdiscovery", "xmain", "xconfirm", "xlive")
+
+
 def verify_mode_for(partition: str, run_id: str) -> Mode:
     """Which key verifies a run when reading it back. The `mock` partition is always mock. A
     mock-mode run of the confirm experiment (T13) lives in the `confirm` partition with a `mock-`
     run_id and is signed with the public mock key; analysis labels such a run MOCK. Every other
-    partition is verified with the live key."""
-    if partition == "mock" or (partition == "confirm" and run_id.startswith("mock-")):
+    partition is verified with the live key. The cross-provider partitions (sol.md §16) follow
+    the confirm rule: a `mock-` run there is a mock dry run, signed with the mock key."""
+    if partition == "mock" or (
+        partition in _MOCK_DRY_RUN_PARTITIONS and run_id.startswith("mock-")
+    ):
         return Mode.MOCK
     return Mode.LIVE
 

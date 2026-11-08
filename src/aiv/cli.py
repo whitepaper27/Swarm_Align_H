@@ -14,7 +14,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from aiv.agents import AnthropicAdapter, MockAdapter, mixed_policy_for
+from aiv.agents import AnthropicAdapter, GeminiAdapter, MockAdapter, OpenAIAdapter, mixed_policy_for
 from aiv.contract import ApprovalState, Condition, Mode, Partition, RunConfig
 from aiv.runtime import CONFIRM_EXPERIMENT, Deps, EpisodeSpec, run_batch
 
@@ -94,16 +94,50 @@ def make_mock_adapter_factory(
     return factory
 
 
-def make_live_adapter_factory(model_id: str, ledger: object | None):
+PROVIDERS = ("anthropic", "openai", "gemini")
+PROVIDER_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+
+def _anthropic_client():
     import anthropic
 
     # max_retries=0: the SDK's own retry-on-429/5xx would bypass the ledger and the frozen
     # retry policy (ARCHITECTURE §10/§11) — every retry must go through our InfraError path.
-    client = anthropic.Anthropic(max_retries=0)
+    return anthropic.Anthropic(max_retries=0)
+
+
+def make_provider_adapter(
+    provider: str,
+    model_id: str,
+    *,
+    episode_id: str,
+    ledger: object | None,
+    anthropic_client: object | None = None,
+):
+    """One live adapter for `provider`. Construction does no I/O (the HTTP adapters read their
+    key and dispatch only inside `complete()`)."""
+    if provider == "anthropic":
+        client = anthropic_client if anthropic_client is not None else _anthropic_client()
+        return AnthropicAdapter(client, model_id, episode_id=episode_id, ledger=ledger)
+    if provider == "openai":
+        return OpenAIAdapter(model_id, episode_id=episode_id, ledger=ledger)
+    if provider == "gemini":
+        return GeminiAdapter(model_id, episode_id=episode_id, ledger=ledger)
+    raise ValueError(f"unknown provider {provider!r}")
+
+
+def make_live_adapter_factory(model_id: str, ledger: object | None, provider: str = "anthropic"):
+    client = _anthropic_client() if provider == "anthropic" else None
 
     def factory(spec: EpisodeSpec, world):
         del world
-        return AnthropicAdapter(client, model_id, episode_id=spec.spend_key, ledger=ledger)
+        return make_provider_adapter(
+            provider, model_id, episode_id=spec.spend_key, ledger=ledger, anthropic_client=client
+        )
 
     return factory
 
@@ -116,26 +150,51 @@ def _build_live_ledger(partition: Partition):
     return Ledger.from_env(partition.value)
 
 
+DOTENV_OVERRIDE_ENV = "AIV_DOTENV_OVERRIDE"
+
+
 def load_dotenv(path: str | os.PathLike[str]) -> list[str]:
     """Load `KEY=VALUE` lines from `path` into `os.environ` without overriding variables that are
-    already set. Blank values are skipped (an empty price stays "unknown"). Returns keys set."""
+    already set. Blank values are skipped (an empty price stays "unknown"). Returns keys set.
+
+    Opt-in exception: `AIV_DOTENV_OVERRIDE` (comma-separated key names, read from the shell or
+    from the file itself) lists keys the file *does* override even when the shell already has
+    them, e.g. `AIV_DOTENV_OVERRIDE=OPENAI_API_KEY` when a stale key sits in the shell."""
     p = Path(path)
     if os.environ.get("AIV_NO_DOTENV") or not p.is_file():  # tests set AIV_NO_DOTENV
         return []
-    loaded = []
+    pairs: list[tuple[str, str]] = []
     for raw in p.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = (x.strip() for x in line.split("=", 1))
         value = value.strip("'\"")
-        if key and value and key not in os.environ:
+        if key and value:
+            pairs.append((key, value))
+    spec = os.environ.get(DOTENV_OVERRIDE_ENV) or dict(pairs).get(DOTENV_OVERRIDE_ENV, "")
+    override = {k.strip() for k in spec.split(",") if k.strip()}
+    loaded = []
+    for key, value in pairs:
+        if key not in os.environ or key in override:
             os.environ[key] = value
             loaded.append(key)
     return loaded
 
 
-FROZEN_REQUIRED = (Partition.MAIN, Partition.LIVE, Partition.CONFIRM)
+FROZEN_REQUIRED = (
+    Partition.MAIN,
+    Partition.LIVE,
+    Partition.CONFIRM,
+    Partition.XMAIN,
+    Partition.XLIVE,
+    Partition.XCONFIRM,
+)
+MAIN_LIKE = (Partition.MAIN, Partition.XMAIN)  # must use exactly the frozen seeds/cells
+CONFIRM_PARTITIONS = (Partition.CONFIRM, Partition.XCONFIRM)
+# Cross-provider strata (sol.md §16): the only partitions a non-ACTOR_MODEL_ID model may run in,
+# so §1–§7 (Haiku) can never be contaminated by another model's episodes.
+CROSS_PARTITIONS = (Partition.XDISCOVERY, Partition.XLIVE, Partition.XMAIN, Partition.XCONFIRM)
 SPEND_ROOT_ENV = "AIV_SPEND_ROOT"
 
 
@@ -229,14 +288,67 @@ CONFIRM_STATES = (ApprovalState.MISSING,)
 
 
 def _confirm_args_error(args: argparse.Namespace, partition: Partition) -> str | None:
-    """The confirm partition holds only confirm-experiment episodes, and vice versa."""
+    """The confirm/xconfirm partitions hold only confirm-experiment episodes, and vice versa."""
     if args.experiment != CONFIRM_EXPERIMENT:
-        return "the confirm partition requires --experiment confirm"
-    if partition != Partition.CONFIRM:
-        return "--experiment confirm requires --partition confirm"
+        return f"the {partition.value} partition requires --experiment confirm"
+    if partition not in CONFIRM_PARTITIONS:
+        return "--experiment confirm requires --partition confirm or xconfirm"
     if args.chain:
         return "--experiment confirm cannot be combined with --chain"
     return None
+
+
+def resolve_live_models(
+    args: argparse.Namespace,
+    partition: Partition,
+    actor_model_id: str,
+    env: dict[str, str] | os._Environ[str] | None = None,
+) -> tuple[dict[str, str | None] | None, str | None]:
+    """Resolve the live publisher (and chain worker) provider + model. Returns
+    `(extra_keys, None)` or `(None, refusal_message)`.
+
+    - The model defaults to `ACTOR_MODEL_ID` for anthropic; openai/gemini need it explicitly.
+    - Anything other than anthropic `ACTOR_MODEL_ID` runs only in an x-partition (sol.md §16:
+      cross-provider strata are never pooled with §1–§7).
+    - A non-anthropic provider needs its key env var set.
+    The chain coordinator always stays anthropic `ACTOR_MODEL_ID`.
+    """
+    env = os.environ if env is None else env
+    roles: list[tuple[str, str, str | None]] = []
+    pub_provider = args.publisher_provider or "anthropic"
+    pub_model = args.publisher_model or (actor_model_id if pub_provider == "anthropic" else None)
+    roles.append(("publisher", pub_provider, pub_model))
+    worker_provider = worker_model = None
+    if args.chain:
+        worker_provider = args.worker_provider or "anthropic"
+        worker_model = args.worker_model or (
+            actor_model_id if worker_provider == "anthropic" else None
+        )
+        roles.append(("worker", worker_provider, worker_model))
+    allowed = ", ".join(p.value for p in CROSS_PARTITIONS)
+    for role, provider, model in roles:
+        if not model:
+            return (
+                None,
+                f"live mode refused: --{role}-model is required for --{role}-provider {provider}",
+            )
+        if (
+            provider != "anthropic" or model != actor_model_id
+        ) and partition not in CROSS_PARTITIONS:
+            return None, (
+                f"live mode refused: a {role} other than anthropic {actor_model_id} "
+                f"({provider} {model}) runs only in a cross-provider partition ({allowed}); "
+                "strata are never pooled"
+            )
+        key_env = PROVIDER_KEY_ENV[provider]
+        if provider != "anthropic" and not (env.get(key_env) or "").strip():
+            return None, f"live mode refused: {key_env} is not set (--{role}-provider {provider})"
+    return {
+        "publisher_provider": pub_provider,
+        "publisher_model": pub_model,
+        "worker_provider": worker_provider,
+        "worker_model": worker_model,
+    }, None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -271,7 +383,32 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[CONFIRM_EXPERIMENT],
         default=None,
         help="T13 confirmation: injected exact denial, then neutral (A) vs assertion (B) "
-        "follow-up; missing state only; requires --partition confirm",
+        "follow-up; missing state only; requires --partition confirm (or xconfirm)",
+    )
+    run_p.add_argument(
+        "--publisher-provider",
+        choices=PROVIDERS,
+        default="anthropic",
+        help="live only: the publisher's provider (non-anthropic: x-partitions only)",
+    )
+    run_p.add_argument(
+        "--publisher-model",
+        default=None,
+        help="live only: publisher model id (default: env ACTOR_MODEL_ID; required for "
+        "openai/gemini)",
+    )
+    run_p.add_argument(
+        "--worker-provider",
+        choices=PROVIDERS,
+        default=None,
+        help="live chain only: the worker's provider (default anthropic); the coordinator "
+        "stays anthropic ACTOR_MODEL_ID",
+    )
+    run_p.add_argument(
+        "--worker-model",
+        default=None,
+        help="live chain only: worker model id (default: env ACTOR_MODEL_ID; required for "
+        "openai/gemini)",
     )
 
     return parser
@@ -286,7 +423,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 2
     seeds = _parse_seeds(args.seeds)
     confirm = args.experiment == CONFIRM_EXPERIMENT
-    if confirm or partition == Partition.CONFIRM:
+    if confirm or partition in CONFIRM_PARTITIONS:
         if err := _confirm_args_error(args, partition):
             print(err, file=sys.stderr)
             return 2
@@ -296,6 +433,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         default_conds = (Condition.A, Condition.C) if args.chain else RunConfig().conditions
         default_states = RunConfig().approval_states
     conditions = _parse_conditions(args.conditions) if args.conditions else default_conds
+    if (args.worker_provider or args.worker_model) and not args.chain:
+        print("--worker-provider/--worker-model apply to --chain runs only", file=sys.stderr)
+        return 2
     if args.chain and any(c not in (Condition.A, Condition.C) for c in conditions):
         print("chain runs use conditions A and C only", file=sys.stderr)
         return 2
@@ -310,7 +450,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     def freeze_error() -> str | None:
         if args.freeze_id:
             err = check_frozen_matches_draft(_repo_root(), args.freeze_id)
-            if err is None and partition == Partition.MAIN:
+            if err is None and partition in MAIN_LIKE:
                 err = check_main_matches_freeze(
                     _repo_root(), args.freeze_id, seeds, conditions, states
                 )
@@ -364,6 +504,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if not model_id:
             print("live mode refused: ACTOR_MODEL_ID is not set", file=sys.stderr)
             return 2
+        models, err = resolve_live_models(args, partition, model_id)
+        if err or models is None:
+            print(err, file=sys.stderr)
+            return 2
         if not os.environ.get(SPEND_ROOT_ENV):
             print(
                 f"live mode refused: set {SPEND_ROOT_ENV} to one shared ledger dir for all runs",
@@ -377,19 +521,29 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if err := freeze_error():
             print(err, file=sys.stderr)
             return 2
-        config = replace(config, model_id=model_id)
-        adapter_factory = make_live_adapter_factory(model_id, ledger)
+        publisher_model = str(models["publisher_model"])
+        config = replace(config, model_id=publisher_model, extra={**config.extra, **models})
+        adapter_factory = make_live_adapter_factory(
+            publisher_model, ledger, provider=str(models["publisher_provider"])
+        )
         if args.chain:
-            import anthropic
-
-            role_client = anthropic.Anthropic(max_retries=0)
+            role_client = _anthropic_client()
+            worker_provider = str(models["worker_provider"])
+            worker_model = str(models["worker_model"])
 
             def live_roles(world, episode_id):
                 del world
-                return tuple(
-                    AnthropicAdapter(role_client, model_id, episode_id=episode_id, ledger=ledger)
-                    for _ in range(2)
+                worker = make_provider_adapter(
+                    worker_provider,
+                    worker_model,
+                    episode_id=episode_id,
+                    ledger=ledger,
+                    anthropic_client=role_client,
                 )
+                coordinator = AnthropicAdapter(
+                    role_client, model_id, episode_id=episode_id, ledger=ledger
+                )
+                return worker, coordinator
 
             deps.build_handoff = make_chain_handoff(
                 adversarial=adversarial, role_factory=live_roles
