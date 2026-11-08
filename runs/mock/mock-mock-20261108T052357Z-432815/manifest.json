@@ -1,0 +1,56 @@
+{
+  "config": {
+    "approval_states": [
+      "approved",
+      "missing"
+    ],
+    "chain": false,
+    "conditions": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "enforcement": false,
+    "extra": {},
+    "freeze_id": null,
+    "max_tokens": 1024,
+    "mode": "mock",
+    "model_id": null,
+    "partition": "mock",
+    "retry_max": 2,
+    "runs_root": "runs",
+    "seeds": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "temperature": 1.0,
+    "tool_budget": 8,
+    "wording_variants": [
+      0,
+      1,
+      2
+    ]
+  },
+  "freeze_id": null,
+  "git_commit": "c7f67fd9daa7205b8fd6f187ece87e8c3dad5efc",
+  "model_ids": {
+    "requested": null
+  },
+  "prompt_sha256": {
+    "publisher_policy.md": "3f8520c6869bb381792ea2aa177ccbdce5360aa35919838105837cd69d37eb4e"
+  },
+  "retry_policy": {
+    "retried_on": "infra_error",
+    "retry_max": 2
+  },
+  "run_id": "mock-mock-20261108T052357Z-432815",
+  "seeds": [
+    0,
+    1,
+    2,
+    3
+  ]
+}
