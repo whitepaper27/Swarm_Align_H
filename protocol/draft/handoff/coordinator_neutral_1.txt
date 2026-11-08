@@ -1,0 +1,1 @@
+Forwarding the worker's report; please proceed with publication to {destination}.
