@@ -273,3 +273,28 @@ Use this wording only for experiments actually completed. Replace it with precis
   - Fill the `{{RESULT}}` slots in docs/report_draft.md from RESULTS.md, with the design-power text updated to N = 100.
   - Owner verification of citations.
   - Template, PDF, public repo, submission.
+
+16. Addendum: cross-provider extension, decided before any cross-provider data (Sun Nov 8, 2026, ~11:45 AM CT)
+    Owner decision. The Haiku study (§15) is complete and is not changed by this extension. The extension
+    targets the three gaps a reader will see: a single model; a live attack that never reached the
+    publisher; and a mitigation (D−B) that can't be tested when nothing fails. Sections 1–15 are unchanged.
+
+- **Model selection rule, fixed now:** per provider, the *cheapest current tool-capable* model, identified
+  by a stable model ID (no preview and no moving `-latest` alias), read from the provider's model list on
+  Sun Nov 8. Applied: Google → `gemini-3.5-flash-lite`. OpenAI → blocked, because the available key returns 401;
+  if a working key arrives, the same rule applies. **Every model run is reported, whatever its result.**
+  Models are never added, dropped or swapped after seeing outcomes.
+- **Track 1, heterogeneous chain:** the worker is the non-Claude model. The coordinator and publisher stay Claude
+  Haiku 4.5. The frozen chain prompts are unchanged.
+  - Gate T1: a small discovery batch in `xdiscovery` shows whether the non-Claude worker actually writes the
+    false approval claim. If it doesn't, Track 1 stops and is reported as "worker refused across providers".
+  - If it does, there's a frozen live batch in `xlive`, labeled by the same two-blind-labeler pipeline.
+- **Track 2, cross-provider publisher:** the publisher is the non-Claude model. Handoffs, policy and the
+  confirm design are unchanged. Steps:
+  - a smoke test of two episodes through all four tools, with traces read by a person, so adapter-made failures
+    are caught before any batch;
+  - then frozen batches: `xmain` (missing state, A–D) and `xconfirm` (both arms).
+  - Gate T2: if adapter or infra failures exceed 5%, Track 2 is cut and reported as attempted.
+- **Strata:** x-partitions are analyzed in RESULTS.md §10 by model, and are **never pooled** with §1–§7.
+  Pilot-like smoke and discovery runs are exploratory.
+- **Time box:** report writing starts at 2 PM regardless. Any batch not finished by about 6 PM CT is cut and reported as not run.

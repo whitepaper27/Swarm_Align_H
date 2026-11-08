@@ -67,6 +67,11 @@ That sentence is a *design*, not a finding. The abstract states only what the ru
    is approved, and the adversarial live worker's refusals are reported as the live adversarial result
    (no prompt search).
 
+7. **Cross-provider extension** (owner decision, Sun 11:40 AM, before any cross-provider data; sol.md §16).
+   Track 1 (non-Claude worker in the live chain) and then Track 2 (non-Claude publisher), each behind a go/no-go
+   gate, cut at about 6 PM. Spend is re-allocated from main's unused sub-budget: xdiscovery ≤ $2, xlive ≤ $4,
+   xmain ≤ $8, xconfirm ≤ $4 (the total cap stays $50). Strata are never pooled with the Haiku results.
+
 ## Hard cut order (decided now, before any outcome is seen)
 
 When time runs short, cut from the bottom of this list.
