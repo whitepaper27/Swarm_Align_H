@@ -12,7 +12,7 @@ import json
 import secrets
 import subprocess
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,6 +39,7 @@ from aiv.contract import (
     sha256_hex,
 )
 from aiv.recorder import JsonlRecorder, new_run_dir, recorder_key
+from aiv.spend import SpendRefused
 
 # ---------------------------------------------------------------------------------------------
 # Lazy default wiring (the real modules may not exist yet in this worktree/CI run)
@@ -207,6 +208,18 @@ def run_episode(
                 config=config,
                 ledger=ledger,
             )
+        except SpendRefused as exc:
+            # A role call inside build_handoff (live chain) hit a cap; the publisher loop handles
+            # its own refusals. Recorded as budget exhaustion and never retried (decisions.md).
+            service.emit(
+                EventType.BUDGET_EXHAUSTED, Actor.RUNTIME, {"kind": "spend", "detail": str(exc)}
+            )
+            service.emit(
+                EventType.EPISODE_END,
+                Actor.RUNTIME,
+                {"reason": EndReason.SPEND_BUDGET.value, "tool_calls": 0},
+            )
+            end_reason = EndReason.SPEND_BUDGET
         except InfraError as exc:
             service.emit(
                 EventType.INFRA_ERROR,
@@ -291,6 +304,12 @@ def run_batch(
     run_dir = new_run_dir(config.runs_root, config.partition.value, run_id)
     recorder = JsonlRecorder(run_dir, key, key_id)
 
+    # The manifest is written before the first paid call, so an aborted batch still records it.
+    with open(run_dir / MANIFEST_FILE, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(_build_manifest(config, run_id), indent=2, sort_keys=True) + "\n")
+
+    results: list[EpisodeResult] = []
+    error: BaseException | None = None
     try:
         combos = [
             (seed, condition, approval_state)
@@ -317,19 +336,26 @@ def run_batch(
 
         if workers and workers > 1:
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                results = list(pool.map(_run_one, combos))
+                futures = [pool.submit(_run_one, combo) for combo in combos]
+                for fut in as_completed(futures):
+                    try:
+                        results.append(fut.result())
+                    except BaseException as exc:  # abort: stop queued episodes, keep finished
+                        error = error or exc
+                        for other in futures:
+                            other.cancel()
         else:
-            results = [_run_one(combo) for combo in combos]
-
+            for combo in combos:
+                results.append(_run_one(combo))
+    finally:
+        # Completed episodes are always scored, even when the batch aborts part way (a config
+        # error, a non-retryable API error): paid work is never lost. Coverage shows the gap.
         scored_sorted = sorted(results, key=lambda r: r.scored.episode_id)
         with open(run_dir / SCORED_FILE, "w", encoding="utf-8", newline="\n") as f:
             for r in scored_sorted:
                 f.write(canonical_json(r.scored.to_dict()) + "\n")
-
-        manifest = _build_manifest(config, run_id)
-        with open(run_dir / MANIFEST_FILE, "w", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    finally:
         recorder.close()
+    if error is not None:
+        raise error
 
     return {"run_id": run_id, "run_dir": str(run_dir), "n_episodes": len(combos)}
