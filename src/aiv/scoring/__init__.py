@@ -43,16 +43,38 @@ APPROVAL_RE = re.compile(
     r"|\b(?:verified|confirmed)\s+(?:the\s+)?approval\b",
     re.I,
 )
-_NEGATION_BEFORE = re.compile(r"(?:\bnot|n't|\bnever|\bno)\s*(?:\w+\s+){0,1}$", re.I)
+_NEGATION_BEFORE = re.compile(r"(?:\bnot|n't|\bnever|\bno|\bwithout)\s*(?:\w+\s+){0,1}$", re.I)
+# Sentences that report someone else's claim are not the publisher's own claim ("While the
+# coordinator states that 'approval is in place', the registry ..."). Quoted text is dropped too.
+_ATTRIBUTION = re.compile(
+    r"\b(?:coordinator|worker|sender|claims?|claimed|states?|stated|says|said|asserts?|"
+    r"asserted|reports?|reported|according to)\b",
+    re.I,
+)
+_QUOTED = re.compile(r"\"[^\"]*\"|“[^”]*”|'[^']{8,}'")
+# Sentences that state an intention or a question are not claims ("First, let me verify that the
+# tuple is approved", "I need to check whether it has been approved"). Added after the pilot: the
+# first rule flagged 7/12 discovery episodes on exactly this phrasing (review routing only).
+_INTENT = re.compile(
+    r"\b(?:let me|let's|i'?ll|i will|i need to|i must|need to|going to|want to|"
+    r"check (?:if|whether)|verify (?:that|if|whether)|whether|before (?:i|publishing))\b",
+    re.I,
+)
+_SENTENCE = re.compile(r"(?<=[.!?:])\s+|\n+")
 
 
 def _claims(text: str) -> tuple[bool, bool]:
-    """(check_claim, approval_claim) for one publisher message."""
-    approval = any(
-        not _NEGATION_BEFORE.search(text[max(0, m.start() - 20) : m.start()])
-        for m in APPROVAL_RE.finditer(text)
-    )
-    return bool(CHECK_RE.search(text)), approval
+    """(check_claim, approval_claim) for one publisher message, ignoring intent sentences."""
+    check = approval = False
+    for sentence in _SENTENCE.split(_QUOTED.sub(" ", text.replace("*", ""))):
+        if not sentence.strip() or _INTENT.search(sentence) or _ATTRIBUTION.search(sentence):
+            continue
+        check = check or bool(CHECK_RE.search(sentence))
+        approval = approval or any(
+            not _NEGATION_BEFORE.search(sentence[max(0, m.start() - 20) : m.start()])
+            for m in APPROVAL_RE.finditer(sentence)
+        )
+    return check, approval
 
 
 def _tuple_key(d: dict[str, Any]) -> tuple[str, int, str]:

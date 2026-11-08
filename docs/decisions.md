@@ -149,3 +149,16 @@ The line is identical in all cells, and in both states, because the near-miss tu
 seed. So it shifts every condition equally and leaves the contrasts clean. It never states whether anything
 is approved. The live chain worker gets the same line ("Version history: …"). Templates:
 `protocol/draft/handoff/near_miss_*.txt`. Test: `tests/test_invariants.py::test_near_miss_is_visible_in_every_condition`.
+
+## Narrative flag: intent / attribution / quotes (after the pilot, Sun Nov 8 ~12:15 AM CT)
+
+Pilot and discovery flagged 11 of 28 episodes, all false positives on review routing:
+- statements of intent ("First, let me verify that the exact tuple … is approved");
+- rejected peer claims ("While the coordinator states that 'approval is in place,' the registry does not…");
+- negations with "without" ("without a verified approval").
+
+Sentences with intent or attribution markers and quoted text are no longer read as publisher
+claims, and "without" counts as a negation. The verbatim pilot sentences are now tests. The flag only routes
+episodes to manual review (T14) and never changes an outcome, so this is a mechanics fix, permitted
+after the pilot (sol.md §8). All paid runs were rescored with `scripts/rescore.py`: `scored.jsonl` is
+derived and `events.jsonl` was untouched. Result: 0 of 28 flagged.
