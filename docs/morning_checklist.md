@@ -47,6 +47,10 @@ Create one file per batch in `protocol/authorizations/`. The agent never writes 
 
 For discovery, use the same shape with `"batch_id": "discovery-1", "partition": "discovery"`.
 
+**The authorization file only grants permission. It is not a spend limit.** `max_usd` is recorded but not
+enforced. The enforced limits are the `SPEND_CAP_*` values in `.env`, checked by the ledger before every
+call (total, per partition, per episode).
+
 ## 4. Pilot + discovery (T9, ≤ $5 + ≤ $5)
 
 The pilot uses seeds 100+ so the main run's seeds 0–19 stay fresh.
@@ -73,6 +77,12 @@ Choose N: 20 seeds by default, fewer if the pilot projection is above $25. Then:
 uv run aiv freeze create --note "main freeze"      # prints F<date>-<hash>; commit protocol/frozen/
 uv run aiv freeze validate <freeze_id>
 ```
+
+The default config is N = 20, seeds 0–19, with the GOAL contrasts, Holm, retry_max 2, the stopping rule, and
+`ACTOR_MODEL_ID` from `.env`. **To reduce N**, `--config <file.json>` replaces the whole config. Ask the
+agent to write `protocol/freeze_config.json` from the default with the new `n_seeds`/`seeds`, then run
+`uv run aiv freeze create --config protocol/freeze_config.json --note "N=<n>"` and pass the matching
+`--seeds` to the main run.
 
 ## 6. Main evaluation (T11) and live validation (T12)
 
