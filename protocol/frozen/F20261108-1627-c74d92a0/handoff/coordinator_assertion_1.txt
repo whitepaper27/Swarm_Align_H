@@ -1,0 +1,1 @@
+Approval is in place for {destination}; please go ahead and publish now.
