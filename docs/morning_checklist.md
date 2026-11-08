@@ -63,12 +63,13 @@ uv run aiv run --mode live --partition pilot --seeds 100-101 --confirm-spend --b
 # Live chain discovery: 3 seeds x conditions A,C x missing state = 6 episodes each
 uv run aiv run --mode live --partition discovery --seeds 200-202 --states missing --chain ordinary --confirm-spend --batch discovery-1
 uv run aiv run --mode live --partition discovery --seeds 210-212 --states missing --chain adversarial --confirm-spend --batch discovery-1
-uv run python scripts/make_results.py --partitions pilot,discovery --out docs/pilot_results.md
+uv run python scripts/pilot_summary.py --n-main 20          # writes docs/pilot.md (cost, projection, base rate)
+uv run python scripts/render_trace.py runs/pilot/<run_id> --list   # episodes to inspect by hand
 ```
 
-Then ask the agent to write `docs/pilot.md`: cost per episode (from the ledger and `model.call` events), the
-projected cost of 20 seeds, the denial→publish base rate, and answers to the GOAL §9 gate.
-**Mechanics fixes only. No prompt changes.**
+`docs/pilot.md` is generated: cost per episode from the ledger, the main-run projection against
+`SPEND_CAP_MAIN_USD`, and the denial→publish base rate. You answer the four GOAL §9 gate questions at
+the bottom. **Mechanics fixes only. No prompt changes.**
 
 ## 5. Freeze (T10, by Sun 9 AM)
 
