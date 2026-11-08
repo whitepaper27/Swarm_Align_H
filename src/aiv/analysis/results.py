@@ -12,6 +12,7 @@ Partitions are never pooled (AGENTS.md): `mock`/`main` feed sections 1-5, `live`
 from __future__ import annotations
 
 import collections
+import json
 import subprocess
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -480,27 +481,80 @@ def section5(core: CoreData) -> tuple[str, set[Citation]]:
 # ---------------------------------------------------------------------------------------------
 
 
-def section6(live_episodes: Sequence[ScoredEpisode]) -> tuple[str, set[Citation]]:
+LABELS_FILE = Path("docs") / "labels" / "live_labels_final.jsonl"
+LABEL_ORIGINS = (
+    "worker_originated",
+    "coordinator_introduced",
+    "coordinator_strengthened",
+    "ambiguous",
+)
+
+
+def _chain_variant(runs_root: Path, e: ScoredEpisode) -> str:
+    """The live run's chain variant, from its manifest (one variant per run)."""
+    manifest = runs_root / e.partition / e.run_id / "manifest.json"
+    try:
+        extra = json.loads(manifest.read_text(encoding="utf-8"))["config"].get("extra", {})
+        return str(extra.get("chain_variant") or "unknown")
+    except (OSError, KeyError, json.JSONDecodeError):
+        return "unknown"
+
+
+def _load_labels(repo_root: Path | None) -> dict[str, dict]:
+    path = (repo_root or Path(".")) / LABELS_FILE
+    if not path.exists():
+        return {}
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return {r["episode_id"]: r for r in rows}
+
+
+def section6(
+    live_episodes: Sequence[ScoredEpisode], runs_root: Path, repo_root: Path | None = None
+) -> tuple[str, set[Citation]]:
     chain_eps = [e for e in live_episodes if e.chain]
     header = (
         "| Variant | Episodes | Unauthorized commits | False approval claims "
-        "(worker-orig / coord-introduced / coord-strengthened / ambiguous) | Runs |\n"
-        "|---|---|---|---|---|"
+        "(worker-orig / coord-introduced / coord-strengthened / ambiguous) | Worker refused | "
+        "Publisher adopted a claim | Runs |\n"
+        "|---|---|---|---|---|---|---|"
     )
     if not chain_eps:
         rows = [
-            f"| Ordinary | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} |",
-            f"| Adversarial worker | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} |",
+            f"| ordinary | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} |",
+            f"| adversarial | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | "
+            f"{NOT_RUN} |",
         ]
         return header + "\n" + "\n".join(rows), set()
-    cites = {citation_of(e) for e in chain_eps}
-    unauth = sum(1 for e in chain_eps if e.unauthorized_commit)
-    runs = _cite_list(cites)
-    row = (
-        f"| All (ordinary/adversarial split requires manual labels) | {len(chain_eps)} | "
-        f"{unauth} | {NOT_RUN} | {runs} |"
+    labels = _load_labels(repo_root)
+    cites: set[Citation] = set()
+    rows = []
+    groups: dict[str, list[ScoredEpisode]] = {}
+    for e in chain_eps:
+        groups.setdefault(_chain_variant(runs_root, e), []).append(e)
+    for variant in sorted(groups):
+        grp = groups[variant]
+        run_cites = {citation_of(e) for e in grp}
+        cites |= run_cites
+        unauth = sum(1 for e in grp if e.unauthorized_commit)
+        lab = [labels[e.episode_id] for e in grp if e.episode_id in labels]
+        if len(lab) == len(grp):
+            counts = collections.Counter(r["origin"] for r in lab)
+            claims = " / ".join(str(counts.get(o, 0)) for o in LABEL_ORIGINS)
+            refused = f"{sum(bool(r['worker_refused']) for r in lab)}/{len(grp)}"
+            adopted = f"{sum(bool(r['publisher_adopted_claim']) for r in lab)}/{len(grp)}"
+        else:
+            claims = refused = adopted = f"{NOT_RUN} (labels {len(lab)}/{len(grp)})"
+        rows.append(
+            f"| {variant} | {len(grp)} | {unauth}/{len(grp)} | {claims} | {refused} | {adopted} | "
+            f"{_cite_list(run_cites)} |"
+        )
+    note = (
+        "\n\nLabels: `docs/labels/live_labels_final.jsonl`, two independent Claude labelers "
+        "(rubric `docs/labels/rubric.md`), disagreements adjudicated by the author."
+        if labels
+        else ""
     )
-    return header + "\n" + row, cites
+    return header + "\n" + "\n".join(rows) + note, cites
 
 
 CONFIRM_ARMS = (("neutral", Condition.A), ("assertion", Condition.B))
@@ -719,7 +773,7 @@ def render(
     s4, c4 = section4(core)
     s4b, c4b = section4b(core)
     s5, c5 = section5(core)
-    s6, c6 = section6(live_finals_list)
+    s6, c6 = section6(live_finals_list, runs_root, repo_root)
     s7, c7 = section7(confirm_finals_list)
     s8, c8 = section8(
         {
