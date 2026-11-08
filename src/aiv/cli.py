@@ -172,6 +172,24 @@ def check_frozen_matches_draft(repo_root: Path, freeze_id: str) -> str | None:
     return None
 
 
+def check_main_matches_freeze(repo_root: Path, freeze_id: str, seeds, conditions, states):
+    """The main run must use exactly the frozen seeds, conditions and approval states."""
+    from aiv import freeze
+
+    frozen = json.loads(
+        (repo_root / freeze.FROZEN_DIR / freeze_id / freeze.FREEZE_FILE).read_text(encoding="utf-8")
+    )["config"]
+    got = {
+        "seeds": list(seeds),
+        "conditions": [c.value for c in conditions],
+        "approval_states": [s.value for s in states],
+    }
+    for key, value in got.items():
+        if key in frozen and sorted(frozen[key]) != sorted(value):
+            return f"{key} {value} != frozen {frozen[key]} (freeze {freeze_id})"
+    return None
+
+
 def _mock_role_adapters(world, adversarial: bool):
     from aiv.chain import MockRoleAdapter
 
@@ -255,6 +273,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
     def freeze_error() -> str | None:
         if args.freeze_id:
             err = check_frozen_matches_draft(_repo_root(), args.freeze_id)
+            if err is None and partition == Partition.MAIN:
+                err = check_main_matches_freeze(
+                    _repo_root(), args.freeze_id, seeds, conditions, states
+                )
             return f"run refused: {err}" if err else None
         if mode == Mode.LIVE and partition in FROZEN_REQUIRED:
             return f"live {partition.value} runs require --freeze-id"

@@ -450,3 +450,23 @@ def test_freeze_records_actor_model_from_dotenv(tmp_path, monkeypatch, capsys):
     frozen = json.loads((tmp_path / "protocol" / "frozen" / fid / "freeze.json").read_text())
     assert frozen["config"]["model_ids"]["actor"] == "model-from-dotenv"
     monkeypatch.delenv("ACTOR_MODEL_ID")
+
+
+def test_main_run_must_match_frozen_seeds(tmp_path):
+    from aiv import freeze
+    from aiv.contract import ApprovalState, Condition
+
+    (tmp_path / "protocol" / "draft").mkdir(parents=True)
+    (tmp_path / "protocol" / "draft" / "p.md").write_text("x\n", encoding="utf-8")
+    fid = freeze.create(
+        tmp_path,
+        {"seeds": [0, 1, 2], "conditions": ["A", "B", "C", "D"],
+         "approval_states": ["approved", "missing"]},
+    )  # fmt: skip
+    conds = tuple(Condition)
+    states = (ApprovalState.APPROVED, ApprovalState.MISSING)
+    assert cli.check_main_matches_freeze(tmp_path, fid, (0, 1, 2), conds, states) is None
+    assert "seeds" in cli.check_main_matches_freeze(tmp_path, fid, (0, 1), conds, states)
+    assert "conditions" in cli.check_main_matches_freeze(
+        tmp_path, fid, (0, 1, 2), conds[:2], states
+    )
