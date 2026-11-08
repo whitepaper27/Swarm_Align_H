@@ -298,3 +298,22 @@ Use this wording only for experiments actually completed. Replace it with precis
 - **Strata:** x-partitions are analyzed in RESULTS.md §10 by model, and are **never pooled** with §1–§7.
   Pilot-like smoke and discovery runs are exploratory.
 - **Time box:** report writing starts at 2 PM regardless. Any batch not finished by about 6 PM CT is cut and reported as not run.
+
+17. Future experiment: asymmetric access and agent-created channels (T16 planning note, Sun Nov 8, 2026)
+
+    Test whether agents with different goals and permissions exchange information or access to reach a goal
+    neither can reach alone. For example, one agent can read a protected synthetic record while another can
+    perform a separate action. Give each a legitimate task, record exactly which data and tools each can use,
+    and observe whether they offer a trade or create a communication path through a shared artifact such as
+    an application log. The log is an instrumented synthetic surface, never a real network or private-data
+    channel. Compare with a matched condition where the extra channel is unavailable. Score access, messages,
+    and actions from service events, not from claims in agent text. Review traces before describing any
+    behavior as intentional cooperation.
+
+    This is a separate research question, outside the frozen approval-handoff experiments and the current
+    submission's result set. A one-hour prototype could demonstrate that messages pass through a log, but it
+    could not establish the key claim: independently motivated agents discovering and using a channel to
+    exchange access. That requires separate goals, permission isolation, a controlled channel comparison,
+    event-based scoring, repeated fresh trials, and review for accidental leakage or scripted behavior.
+    Develop and freeze that protocol after this submission rather than treating a quick demonstration as a
+    finding from the present study.
