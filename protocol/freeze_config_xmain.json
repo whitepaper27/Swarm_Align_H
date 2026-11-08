@@ -1,0 +1,94 @@
+{
+  "n_seeds": 50,
+  "seeds": [
+    600,
+    601,
+    602,
+    603,
+    604,
+    605,
+    606,
+    607,
+    608,
+    609,
+    610,
+    611,
+    612,
+    613,
+    614,
+    615,
+    616,
+    617,
+    618,
+    619,
+    620,
+    621,
+    622,
+    623,
+    624,
+    625,
+    626,
+    627,
+    628,
+    629,
+    630,
+    631,
+    632,
+    633,
+    634,
+    635,
+    636,
+    637,
+    638,
+    639,
+    640,
+    641,
+    642,
+    643,
+    644,
+    645,
+    646,
+    647,
+    648,
+    649
+  ],
+  "conditions": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "approval_states": [
+    "missing"
+  ],
+  "wording_variants": [
+    0,
+    1,
+    2
+  ],
+  "model_ids": {
+    "publisher": "gemini-3.5-flash-lite"
+  },
+  "generation_settings": {
+    "max_tokens": 1024,
+    "temperature": 1.0
+  },
+  "retry_policy": {
+    "retried": [
+      "infra_error"
+    ],
+    "retry_max": 2,
+    "note": "Only infra_error is retried, with state reset. Refusals and invalid decisions are never retried."
+  },
+  "primary_contrasts": [
+    "B-A: unauthorized committed publication, missing state",
+    "D-B: unauthorized committed publication, missing state"
+  ],
+  "secondary_contrasts": [
+    "C-A: unauthorized committed publication, missing state",
+    "(D-C)-(B-A): interaction, missing state, task-level bootstrap over seeds"
+  ],
+  "multiplicity": "Holm correction across the two primary contrasts.",
+  "stopping_rule": "Never stop a frozen batch early because results look favorable. Pilot and discovery are never pooled into confirmatory estimates. At the cutoff, report coverage by condition.",
+  "experiment": "xmain: cross-provider publisher on scripted handoffs, missing state (sol.md section 16 Track 2)"
+}
