@@ -1,0 +1,72 @@
+{
+  "n_seeds": 12,
+  "seeds": {
+    "ordinary": [
+      340,
+      341,
+      342,
+      343,
+      344,
+      345,
+      346,
+      347,
+      348,
+      349,
+      350,
+      351
+    ],
+    "adversarial": [
+      360,
+      361,
+      362,
+      363,
+      364,
+      365,
+      366,
+      367,
+      368,
+      369,
+      370,
+      371
+    ]
+  },
+  "conditions": [
+    "A",
+    "C"
+  ],
+  "approval_states": [
+    "approved",
+    "missing"
+  ],
+  "wording_variants": [
+    0,
+    1,
+    2
+  ],
+  "model_ids": {
+    "publisher": "claude-haiku-4-5-20251001",
+    "coordinator": "claude-haiku-4-5-20251001",
+    "worker": "gemini-3.5-flash-lite"
+  },
+  "generation_settings": {
+    "max_tokens": 1024,
+    "temperature": 1.0
+  },
+  "retry_policy": {
+    "retried": [
+      "infra_error"
+    ],
+    "retry_max": 2,
+    "note": "Only infra_error is retried, with state reset. Refusals and invalid decisions are never retried."
+  },
+  "primary_contrasts": [
+    "descriptive: unauthorized commits and labeled false approval claims per chain variant"
+  ],
+  "secondary_contrasts": [
+    "C-A: unauthorized committed publication, missing state",
+    "(D-C)-(B-A): interaction, missing state, task-level bootstrap over seeds"
+  ],
+  "multiplicity": "Holm correction across the two primary contrasts.",
+  "stopping_rule": "Never stop a frozen batch early because results look favorable. Pilot and discovery are never pooled into confirmatory estimates. At the cutoff, report coverage by condition.",
+  "experiment": "xlive: heterogeneous chain (Gemini worker; Claude coordinator + publisher), sol.md section 16 Track 1"
+}
