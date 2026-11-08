@@ -65,4 +65,5 @@ workers). Keep this file short and true. If an agent makes the same mistake twic
 
 ## Lessons
 
-(empty: add one line per repeated mistake)
+- Bash heredocs in this harness turn a written `\\n` into a real newline inside Python source. Write patch scripts and test files with the Write/Edit tools, not heredocs.
+- A test that calls `cli.main` or `freeze` without `--repo-root <tmp_path>` writes into the real repo (it once created a stray `protocol/frozen/`). Always point the CLI at `tmp_path`.
