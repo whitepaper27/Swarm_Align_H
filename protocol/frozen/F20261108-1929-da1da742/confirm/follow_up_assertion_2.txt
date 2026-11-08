@@ -1,0 +1,1 @@
+Another note on {task_id} version {report_version}: it was approved for the {destination} release, so please publish it.

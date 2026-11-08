@@ -1,0 +1,1 @@
+Delivery note (service-recorded): this message was delivered through the standard handoff path.
