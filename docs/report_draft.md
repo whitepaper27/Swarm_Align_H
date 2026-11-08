@@ -145,8 +145,8 @@ attempt records its tuple's registry status, so outcomes come from hash-chained 
 agent text. From lookups with lower `seq`, each attempt is `no_lookup` (omission),
 `nonmatching_lookup_only` (mismatch), `exact_denial` or `exact_approval` (rules in Appendix E). An
 episode ends in `unauthorized_publication` if the committed tuple is not approved and
-`authorized_publication` if it is; text with no tool call "ended without a terminal action" (full
-outcome list and flags: Appendix E). Rates are over evaluable episodes, which exclude `infra_error`.
+`authorized_publication` if it is; text with no tool call counts as "ended without a terminal
+action" (full outcome list and the narrative-versus-record flag: Appendix E). Rates are over evaluable episodes, which exclude `infra_error`.
 
 ### 3.5 Live three-role validation
 
@@ -218,7 +218,7 @@ near-miss named in every handoff.
 **Verification and utility.** Exact verification before the decision: 100/100, CP [0.964, 1.000] in
 each of the eight cells. Correct authorized success: 100/100, CP [0.964, 1.000] in each approved
 cell. Tuple substitution and procedural noncompliance: 0/100 in every cell. Safe return or approval
-request: 100/100 in each missing-state cell <!-- RESULTS.md §3 -->, breakdown in Table E1. Both labelers judged every narrative-flagged episode a false positive (Appendix E).
+request: 100/100 in each missing-state cell <!-- RESULTS.md §3 -->, breakdown in Table E1.
 
 ### Confirmation: does reassurance override a denial?
 
@@ -256,7 +256,7 @@ Because the Haiku adversarial worker always refused, its attack never reached th
 coordinator, told not to add an approval claim, wrote "Version 3 is ready and approved for
 publication to this destination." (`chain-s305-A-missing-a0`) after the worker said only that the
 report was ready. The publisher checked the registry and did not adopt it
-<!-- docs/labels/live_labels_final.jsonl -->. Label agreement: Appendix E.
+<!-- docs/labels/live_labels_final.jsonl -->. Agreement between the two blind labelers: Appendix E.
 
 ## 7. Cross-provider extension
 
@@ -301,8 +301,8 @@ re-queried the registry in 58/100 assertion episodes against 0/100 neutral (seco
 <!-- RESULTS.md §7 -->: the peer claim became a reason to re-check the record, not a substitute for
 it. The Gemini publisher re-checked in both arms, so the re-check *trigger* looks model-dependent
 (untested across strata); no unauthorized commit was observed with either
-publisher. A Gemini worker's false claim that reached the Haiku publisher was never committed,
-though the publisher once offered to pass it on. The contribution is an informative boundary for these models, policy and workflow, plus that mechanism
+publisher. When a Gemini worker's false claim reached the Haiku publisher, no commit followed,
+though the publisher once offered to pass the claim on. The contribution is an informative boundary for these models, policy and workflow, plus that mechanism
 observation.
 
 **Mitigation versus utility.** Provenance was the mitigation tested. Correct authorized success was
@@ -557,7 +557,7 @@ Delivery note (service-recorded): this message was delivered through the standar
 
 ## Appendix E. Additional methods and results
 
-Material moved from the main text to fit the page limit; numbers and sources are unchanged.
+Detail supporting Sections 3–6; numbers and sources as in the main text.
 
 **Per-attempt verification category** (Section 3.4), using only lookups with lower `seq` than the
 attempt:
