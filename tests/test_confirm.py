@@ -348,6 +348,10 @@ def test_mock_confirm_batch_via_cli_verifies_rescores_and_renders(tmp_path, monk
     section = text.split("## 7.")[1].split("## 8.")[0]
     assert "MOCK — not a result." in section
     assert "/6" in section and "Paired n" in section and run_dir.name in section
+    # Mock-derived numbers elsewhere carry the label too: the header and the section 8 row.
+    assert "MOCK — not a result:** the confirm partition" in text.split("## 1.")[0]
+    (cost_row,) = [r for r in text.split("## 8.")[1].splitlines() if r.startswith("| confirm |")]
+    assert "MOCK — not a result." in cost_row
 
 
 # ---------------------------------------------------------------------------------------------

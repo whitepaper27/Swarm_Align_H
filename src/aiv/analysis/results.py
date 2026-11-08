@@ -624,9 +624,10 @@ def section8(by_partition: dict[str, Sequence[ScoredEpisode]]) -> tuple[str, set
         in_tok = sum(e.input_tokens for e in eps)
         out_tok = sum(e.output_tokens for e in eps)
         runs = _cite_list(run_cites)
+        mock = " **MOCK — not a result.**" if any(_is_mock_run(e) for e in eps) else ""
         row = (
             f"| {label} | {NOT_RUN} | {in_tok} | {out_tok} | "
-            f"{NOT_RUN} (USD not in scored.jsonl; Runs: {runs}) | see GOAL.md |"
+            f"{NOT_RUN} (USD not in scored.jsonl; Runs: {runs}){mock} | see GOAL.md |"
         )
         rows.append(row)
     header = (
@@ -742,6 +743,11 @@ def render(
     mock_note = ""
     if mock_included:
         mock_note = "\n> **MOCK — not a result.**"
+    if any(_is_mock_run(e) for e in confirm_finals_list):
+        mock_note += (
+            "\n> **MOCK — not a result:** the confirm partition includes mock-mode runs "
+            "(section 7 and the section 8 confirm row)."
+        )
 
     def mock_tag() -> str:
         return "\n\n*MOCK — not a result.*" if mock_included else ""
