@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.spend.lock
+/spend/
+.worktrees/
+.verify-logs/
+.spend/
+*.egg-info/
+dist/
