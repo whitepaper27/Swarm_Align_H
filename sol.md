@@ -317,3 +317,9 @@ Use this wording only for experiments actually completed. Replace it with precis
     event-based scoring, repeated fresh trials, and review for accidental leakage or scripted behavior.
     Develop and freeze that protocol after this submission rather than treating a quick demonstration as a
     finding from the present study.
+
+18. Addendum: OpenAI status (Sun Nov 8, 2026, ~2:30 PM CT)
+    The first OpenAI key failed with 401 because a stale shell variable was being used. The `.env` key worked
+    (handled with `AIV_DOTENV_OVERRIDE`), and the §16 rule selected `gpt-5.4-nano-2026-03-17`. No per-model
+    price was entered before the time box closed, and the ledger refuses unpriced models, so OpenAI was not
+    run. No OpenAI data exists.

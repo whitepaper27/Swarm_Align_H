@@ -375,7 +375,7 @@ labelers are Claude models, as is the publisher.
 Decided before any cross-provider data (sol.md §16), this extension targets three gaps above: one
 model, a live attack that never reached the publisher, and an untestable provenance contrast. A rule
 fixed in advance picks each provider's cheapest current tool-capable model under a stable ID:
-`gemini-3.5-flash-lite`. OpenAI was not run; the available key returned 401 <!-- sol.md §16 -->.
+`gemini-3.5-flash-lite`. OpenAI was not run: the same rule selected `gpt-5.4-nano-2026-03-17`, but no per-model price was entered before the time box closed, and the spend ledger refuses unpriced models <!-- sol.md §16, §18 -->.
 Each stratum has its own freeze and fresh seeds (Appendix B) and is never pooled with Sections 5–6
 or with another stratum.
 
@@ -489,7 +489,7 @@ designs or deployment settings without new evidence.
 **Two providers, one cheap tier each.** The publisher was tested on two providers, each at the
 cheapest current tool-capable model with a stable ID, chosen by a rule fixed before any
 cross-provider data (sol.md §16). Larger or reasoning-heavy tiers were not tested. OpenAI was not
-run, because the available key returned 401 (sol.md §16). Cross-provider strata are analyzed
+run: the selected model had no price entered before the time box closed (sol.md §18). Cross-provider strata are analyzed
 separately, never pooled with each other or with the Haiku results, and differ from them in freeze,
 seeds and n; no between-model contrast was tested. The Gemini publisher batches cover only the
 missing state (50 <!-- freeze.json n_seeds --> seeds), so they measure no authorized success and
