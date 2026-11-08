@@ -82,7 +82,7 @@ def plot_main_figure(
     if mock:
         title += "\nMOCK — not a result"
     ax.set_title(title, fontsize=10)
-    ax.legend(fontsize=8)
+    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, frameon=False)
     fig.tight_layout()
     fig.savefig(png_path, dpi=150)
     if pdf_path:
