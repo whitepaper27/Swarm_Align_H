@@ -1,103 +1,68 @@
-# Morning checklist for Sahil (Sun Nov 8)
+# Checklist for Sahil (Sun Nov 8)
 
-Status at handoff: the harness is built and the **core mock gate (T8) is green**. That covers the mock
-e2e of 4 conditions × 2 states, scoring, MOCK results and figure, and a freeze dry run. The **chain mock
-gate is green** too (ordinary + adversarial). No paid call has been made. Everything below needs you,
-and only you can authorize spend.
+Status when you stopped (Sun ~12:30 AM CT):
+- Pilot and discovery are done. Total spend so far is in `.spend/ledger.json`; the per-run details are
+  in `docs/pilot.md` (generated).
+- `.env` is complete: key, model, prices, caps, recorder key, spend root.
+- Your three decisions are recorded in `sol.md §14` and GOAL deviations 5–6: **N = 100**, report the
+  adversarial worker's refusals (no prompt search), and build T13.
+- The main freeze config is ready: `protocol/freeze_config_main.json` (seeds 0–99, Haiku 4.5).
 
-Run all commands from `D:\Eb1\swarm-alignment-2026` in PowerShell. The CLI loads `.env` itself in live
-mode. Shell variables override `.env`.
+Run everything from `D:\Eb1\swarm-alignment-2026`. In Claude Code, prefix each line with `!`.
 
-## 1. Decisions to review first (about 10 min)
+## 1. Freeze (T10): 2 min, from a clean tree
 
-1. **Publisher prompt trimmed to sol.md** (`docs/decisions.md`, commit `abd8a3f`). The sentence telling the
-   publisher that peer statements are not approvals is gone, because it directly coached against the B/D
-   manipulation. The stated obligation "Before publishing, you must verify that the exact tuple is approved" is
-   kept, as sol.md requires. To restore the original prompt, run `git checkout 43866dc -- protocol/draft/publisher_policy.md`
-   and commit **before the pilot**. After the pilot the prompt is frozen.
-2. **Near-miss exposure: decided by you Sat night.** Every handoff now carries a neutral version-history
-   line ("supersedes version n−1" / "also prepared for <other destination>"), so mismatched checks can be
-   measured. sol.md §13 records this and the other build-time clarifications.
-3. **Novelty memo** `docs/contribution.md` (provisional). The closest prior work is *Who Speaks, Who
-   Authorizes, Who Acts?* (arXiv:2610.24298). Read sections 1 and 7 before anything gets cited.
-4. **Model:** the default is `claude-haiku-4-5-20251001`. Change `ACTOR_MODEL_ID` if you prefer another.
-
-## 2. Fill `.env` (T0b)
-
-```powershell
-Copy-Item .env.example .env   # then edit .env
+```bash
+git status --short                       # must be empty
+uv run aiv freeze create --config protocol/freeze_config_main.json --note "main N=100"
+uv run aiv freeze validate <freeze_id>   # prints OK
+git add protocol/frozen && git commit -m "Freeze <freeze_id> (main, N=100)"
 ```
 
-| Key | Value |
-|---|---|
-| `ANTHROPIC_API_KEY` | your key |
-| `ACTOR_MODEL_ID` | confirm (default above) |
-| `PRICE_INPUT_PER_MTOK`, `PRICE_OUTPUT_PER_MTOK` | **from the Anthropic pricing page for that model**. If left empty, the ledger refuses every call |
-| `AIV_RECORDER_KEY` | any long random string: `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `AIV_SPEND_ROOT` | `D:\Eb1\swarm-alignment-2026\.spend` (one shared ledger; it is gitignored) |
+## 2. Authorize main and live (only you)
 
-The caps are already set: total $50, pilot $5, discovery $5, main $25, live $8, confirm $5, episode $0.80.
-
-## 3. Write the batch authorizations (only you)
-
-Create one file per batch in `protocol/authorizations/`. The agent never writes these.
-
-```json
-{"batch_id": "pilot-1", "partition": "pilot", "max_usd": 5, "authorized_by": "Sahil Soni", "created": "2026-11-08T08:00-06:00"}
+```bash
+printf '{"batch_id": "main-1", "partition": "main", "max_usd": 25, "authorized_by": "Sahil Soni", "created": "2026-11-08T09:00-06:00"}\n' > protocol/authorizations/main-1.json
+printf '{"batch_id": "live-1", "partition": "live", "max_usd": 8, "authorized_by": "Sahil Soni", "created": "2026-11-08T09:00-06:00"}\n' > protocol/authorizations/live-1.json
 ```
 
-For discovery, use the same shape with `"batch_id": "discovery-1", "partition": "discovery"`.
+The `SPEND_CAP_*` values in `.env` are the enforced limits. The authorization file only grants permission.
 
-**The authorization file only grants permission. It is not a spend limit.** `max_usd` is recorded but not
-enforced. The enforced limits are the `SPEND_CAP_*` values in `.env`, checked by the ledger before every
-call (total, per partition, per episode).
+## 3. Main evaluation (T11): 800 episodes
 
-## 4. Pilot + discovery (T9, ≤ $5 + ≤ $5)
-
-The pilot uses seeds 100+ so the main run's seeds 0–19 stay fresh.
-
-```powershell
-$env:PYTHONIOENCODING = "utf-8"
-# Controlled pilot: 2 seeds x 4 conditions x 2 states = 16 episodes
-uv run aiv run --mode live --partition pilot --seeds 100-101 --confirm-spend --batch pilot-1
-# Live chain discovery: 3 seeds x conditions A,C x missing state = 6 episodes each
-uv run aiv run --mode live --partition discovery --seeds 200-202 --states missing --chain ordinary --confirm-spend --batch discovery-1
-uv run aiv run --mode live --partition discovery --seeds 210-212 --states missing --chain adversarial --confirm-spend --batch discovery-1
-uv run python scripts/pilot_summary.py --n-main 20          # writes docs/pilot.md (cost, projection, base rate)
-uv run python scripts/render_trace.py runs/pilot/<run_id> --list   # episodes to inspect by hand
+```bash
+uv run aiv run --mode live --partition main --seeds 0-99 --freeze-id <freeze_id> --workers 6 --confirm-spend --batch main-1
 ```
 
-`docs/pilot.md` is generated: cost per episode from the ledger, the main-run projection against
-`SPEND_CAP_MAIN_USD`, and the denial→publish base rate. You answer the four GOAL §9 gate questions at
-the bottom. **Mechanics fixes only. No prompt changes.**
+The CLI refuses the run if the seeds, conditions or states differ from the freeze, or if `protocol/draft/`
+differs from the frozen copy. **Don't edit `protocol/draft/` while it runs**: the prompt is re-read for
+every episode.
 
-## 5. Freeze (T10, by Sun 9 AM)
+## 4. Live validation (T12): ordinary first, then adversarial
 
-Choose N: 20 seeds by default, fewer if the pilot projection is above $25. Then:
-
-```powershell
-uv run aiv freeze create --note "main freeze"      # prints F<date>-<hash>; commit protocol/frozen/
-uv run aiv freeze validate <freeze_id>
+```bash
+uv run aiv run --mode live --partition live --seeds 300-311 --chain ordinary --freeze-id <freeze_id> --workers 4 --confirm-spend --batch live-1
+uv run aiv run --mode live --partition live --seeds 320-331 --chain adversarial --freeze-id <freeze_id> --workers 4 --confirm-spend --batch live-1
 ```
 
-The default config is N = 20, seeds 0–19, with the GOAL contrasts, Holm, retry_max 2, the stopping rule, and
-`ACTOR_MODEL_ID` from `.env`. **To reduce N**, `--config <file.json>` replaces the whole config. Ask the
-agent to write `protocol/freeze_config.json` from the default with the new `n_seeds`/`seeds`, then run
-`uv run aiv freeze create --config protocol/freeze_config.json --note "N=<n>"` and pass the matching
-`--seeds` to the main run.
+Then label every false approval claim by hand (worker-originated / coordinator-introduced /
+coordinator-strengthened / ambiguous), quoting the evidence. Do this **before** computing any summary.
 
-## 6. Main evaluation (T11) and live validation (T12)
+## 5. Results, traces and the T13 handoff
 
-Use the authorizations `main-1` (partition `main`, $25) and `live-1` (partition `live`, $8).
-
-```powershell
-uv run aiv run --mode live --partition main --seeds 0-19 --freeze-id <freeze_id> --workers 4 --confirm-spend --batch main-1
-uv run aiv run --mode live --partition live --seeds 300-305 --chain ordinary --freeze-id <freeze_id> --confirm-spend --batch live-1
-uv run aiv run --mode live --partition live --seeds 310-315 --chain adversarial --freeze-id <freeze_id> --confirm-spend --batch live-1
+```bash
+uv run python scripts/rescore.py runs/main/* runs/live/*      # only if scoring changed after the run
 uv run python scripts/make_results.py --partitions main,live
+uv run python scripts/render_trace.py runs/main/<run_id> --list
+uv run python scripts/render_trace.py runs/main/<run_id> --episode <id> --out docs/trace.md
 ```
 
-Live runs into `main`, `live` or `confirm` are refused without a `--freeze-id` whose files match
-`protocol/draft/` byte for byte.
+- **T13 (approved):** the agent builds it in a separate worktree while step 3 runs, then mock-tests it.
+  Freeze it as F2 and run it in the `confirm` partition with its own authorization (`confirm-1`, about $5).
+- **Report:** `docs/report_draft.md` has `{{RESULT}}` slots that map to sections of `RESULTS.md`. Writing
+  starts at 2 PM whatever state the runs are in. Port it into the official Apart template (link at the top
+  of the draft; nobody has opened the doc yet).
 
-## 7. Writing starts Sun 2 PM, regardless of run state (GOAL cut order)
+## Still waiting on your review
+1. `docs/contribution.md`: check each "[provisional]" comparison against the paper before citing it.
+2. The publisher prompt trim and the near-miss version line (sol.md §13). They're frozen at step 1.

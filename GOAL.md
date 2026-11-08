@@ -39,9 +39,9 @@ That sentence is a *design*, not a finding. The abstract states only what the ru
       and never start live calls on their own.
 - [x] **Reuse:** copy selected modules from `Agent_World_L3` (same author, commit
       `61c7d371b3ca3bf082640a6a33b1b103738357cf`). Disclose them in **both the README and the report**.
-- [ ] Actor model ID confirmed. The default is `claude-haiku-4-5-20251001`, read from env. Record the requested
+- [x] Actor model ID confirmed: `claude-haiku-4-5-20251001` (pilot, Sun Nov 8). The default is `claude-haiku-4-5-20251001`, read from env. Record the requested
       and returned IDs at freeze time.
-- [ ] Pricing basis recorded in `.env` before the first paid call. With unknown pricing the ledger refuses every call.
+- [x] Pricing basis recorded in `.env` before the first paid call ($1 / $5 per MTok, Anthropic API reference). With unknown pricing the ledger refuses every call.
 - [x] **License: MIT** (2026-11-07). The L3 code is relicensed under MIT by its author (Sahil Soni).
 - [x] **Overnight autonomy** (2026-11-07 10:50 PM): the lead has full *local* git authority (commit, tag, merge
       after a green gate, doc edits that record decisions). No push. No paid calls: Sahil fills `.env`,
@@ -59,6 +59,13 @@ That sentence is a *design*, not a finding. The abstract states only what the ru
 4. **The paid-call gate is split** (owner decision, Sat 10:45 PM). The controlled A–D core pilot may proceed once
    the core mock e2e passes (T1–T6). The live chain (T7) has its own mock gate, which applies only to live-chain
    spend. The Sat 11:30 PM milestone was missed (no code existed at 10:41 PM). Waves 1 and 2 run as one wave.
+
+5. **N = 100 seeds (0–99) instead of 20** (owner decision, Sun 12:30 AM, before any main data; sol.md §14).
+   The pilot showed the cost per episode makes it affordable. It makes a null result informative. The design-power
+   text below describes N = 20 and is kept for the record; at N = 100 a 0/100 cell has an upper bound of about 3.6%.
+6. **Pilot answered the §9 gate "no"**, so the pre-registered branch applies: the T13 injected-denial follow-up
+   is approved, and the adversarial live worker's refusals are reported as the live adversarial result
+   (no prompt search).
 
 ## Hard cut order (decided now, before any outcome is seen)
 
