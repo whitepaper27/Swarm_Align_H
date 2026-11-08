@@ -98,3 +98,15 @@ Scoring is a pure function of events, ordered by `seq`. Metadata comes from `epi
 - **Batch authorization** (written only by Sahil, never by an agent or a test outside `tmp_path`):
   `protocol/authorizations/<batch_id>.json` = `{batch_id, partition, max_usd, authorized_by, created}`.
   Live mode requires `--confirm-spend`, `--batch <id>`, the file existing, and a matching partition.
+
+### Scoring gaps resolved (after independent test review, Sat 11:10 PM)
+
+1. Scoring sorts events by `seq`. Input order does not matter.
+2. Token and latency sums cover **every** `model.call` in the episode (publisher, worker, coordinator).
+   They are the episode's cost. `returned_models` likewise covers every role.
+3. With no `episode.end`, `tool_calls = 0` (and the outcome is `infra_error` unless a terminal event exists).
+4. Any `infra.error` event without a publication/return/request terminal event → `infra_error`, whatever
+   `episode.end.reason` says.
+5. The claim regex is `aiv.scoring.CLAIM_RE`. It is broad on purpose, since the flag only feeds manual review.
+6. `requested_model` comes from `episode.start`.
+7. A publisher message is identified by `payload.role == "publisher"`.
