@@ -116,6 +116,25 @@ def _build_live_ledger(partition: Partition):
     return Ledger.from_env(partition.value)
 
 
+def load_dotenv(path: str | os.PathLike[str]) -> list[str]:
+    """Load `KEY=VALUE` lines from `path` into `os.environ` without overriding variables that are
+    already set. Blank values are skipped (an empty price stays "unknown"). Returns keys set."""
+    p = Path(path)
+    if not p.is_file():
+        return []
+    loaded = []
+    for raw in p.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = (x.strip() for x in line.split("=", 1))
+        value = value.strip("'\"")
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
 FROZEN_REQUIRED = (Partition.MAIN, Partition.LIVE, Partition.CONFIRM)
 SPEND_ROOT_ENV = "AIV_SPEND_ROOT"
 
@@ -269,6 +288,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             return 2
         result = run_batch(config, deps, adapter_factory, workers=args.workers)
     else:
+        load_dotenv(_repo_root() / ".env")  # live only; mock never needs keys or prices
         gate_error = check_live_gate(
             confirm_spend=args.confirm_spend, batch=args.batch, partition=partition
         )

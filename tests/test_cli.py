@@ -415,3 +415,20 @@ def test_mock_chain_run_end_to_end(tmp_path, monkeypatch, variant):
     assert workers and all(("approved" in text) == adversarial for text in workers)
     starts = [e for e in events if e.type == EventType.EPISODE_START]
     assert {e.payload["chain_variant"] for e in starts} == {variant}
+
+
+def test_load_dotenv_does_not_override_and_skips_blanks(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text(
+        "# comment\nAIV_T_A=1\nAIV_T_B=\nAIV_T_C='q'\nAIV_T_D=from-file\n", encoding="utf-8"
+    )
+    for k in ("AIV_T_A", "AIV_T_B", "AIV_T_C"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("AIV_T_D", "from-shell")
+    assert sorted(cli.load_dotenv(env)) == ["AIV_T_A", "AIV_T_C"]
+    import os
+
+    assert os.environ["AIV_T_C"] == "q" and os.environ["AIV_T_D"] == "from-shell"
+    assert "AIV_T_B" not in os.environ
+    for k in ("AIV_T_A", "AIV_T_C"):
+        monkeypatch.delenv(k)
