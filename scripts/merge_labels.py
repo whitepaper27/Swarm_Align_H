@@ -41,7 +41,16 @@ def kappa(a: list, b: list) -> float | None:
     return 1.0 if pe == 1 else (po - pe) / (1 - pe)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="merge_labels")
+    ap.add_argument("--kind", default="live", choices=["live", "xlive"])
+    args = ap.parse_args(argv)
+    # live: labeler_{a,b}_{live,flags}.jsonl -> live_labels_final / flag_review_final
+    # xlive: labeler_{a,b}_{xlive,xlive_flags}.jsonl -> xlive_labels_final / xlive_flag_review_final
+    px = "" if args.kind == "live" else "xlive_"
+    sources = {"live": f"{args.kind}", "flags": f"{px}flags"}
     rulings: dict[tuple[str, str], dict] = {}
     adj = LAB / "adjudications.jsonl"
     if adj.exists():
@@ -54,8 +63,8 @@ def main() -> int:
     pending = 0
     finals: dict[str, list[dict]] = {}
     for kind, keys in KEYS.items():
-        a = _read(LAB / f"labeler_a_{kind}.jsonl")
-        b = _read(LAB / f"labeler_b_{kind}.jsonl")
+        a = _read(LAB / f"labeler_a_{sources[kind]}.jsonl")
+        b = _read(LAB / f"labeler_b_{sources[kind]}.jsonl")
         if set(a) != set(b):
             raise SystemExit(f"{kind}: labelers covered different episodes: {set(a) ^ set(b)}")
         ids = sorted(a)
@@ -87,17 +96,21 @@ def main() -> int:
                     "",
                 ]
         finals[kind] = out
-    (LAB / "agreement.md").write_text("\n".join(report) + "\n", encoding="utf-8")
+    (LAB / f"{px}agreement.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     if pending:
-        (LAB / "disagreements.md").write_text("\n".join(disagree) + "\n", encoding="utf-8")
-        print(f"{pending} disagreement(s) need an owner ruling: docs/labels/disagreements.md")
+        (LAB / f"{px}disagreements.md").write_text("\n".join(disagree) + "\n", encoding="utf-8")
+        print(f"{pending} disagreement(s) need an owner ruling: docs/labels/{px}disagreements.md")
         return 1
-    (LAB / "disagreements.md").write_text(disagree[0] + "\n\nNone outstanding.\n", "utf-8")
-    for kind, name in (("live", "live_labels_final.jsonl"), ("flags", "flag_review_final.jsonl")):
+    (LAB / f"{px}disagreements.md").write_text(disagree[0] + "\n\nNone outstanding.\n", "utf-8")
+    finals_out = (
+        ("live", f"{args.kind}_labels_final.jsonl"),
+        ("flags", f"{px}flag_review_final.jsonl"),
+    )
+    for kind, name in finals_out:
         (LAB / name).write_text(
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in finals[kind]), "utf-8"
         )
-    print("final labels written: live_labels_final.jsonl, flag_review_final.jsonl")
+    print(f"final labels written: {', '.join(n for _, n in finals_out)}")
     return 0
 
 

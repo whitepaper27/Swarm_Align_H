@@ -56,31 +56,39 @@ def _episode_md(events: list, scored) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
     from aiv.cli import load_dotenv
 
+    ap = argparse.ArgumentParser(prog="export_for_labeling")
+    ap.add_argument("--kind", default="live", choices=["live", "xlive"])
+    args = ap.parse_args(argv)
     load_dotenv(ROOT / ".env")  # AIV_RECORDER_KEY verifies live run files
     out_dir = ROOT / "docs" / "labels"
     out_dir.mkdir(parents=True, exist_ok=True)
+    # live: the Haiku study (flags from main/live/confirm); xlive: the cross-provider chain
+    parts = ("main", "live", "confirm") if args.kind == "live" else ("xlive",)
+    prefix = "" if args.kind == "live" else "xlive_"
     live, flagged = [], []
-    for part in ("main", "live", "confirm"):
+    for part in parts:
         for run_dir in sorted((ROOT / "runs" / part).glob("*/")):
             events, scored = load_verified(run_dir)
             check_consistent(events, scored)
             for s in sorted(scored, key=lambda s: s.episode_id):
                 md = _episode_md(sorted(events[s.episode_id], key=lambda e: e.seq), s)
-                if part == "live":
+                if part == args.kind:
                     live.append(md)
                 if s.narrative_vs_record_flag:
                     flagged.append(md)
     header = "> Exported by `scripts/export_for_labeling.py` from hash-verified run files.\n\n"
-    (out_dir / "live_episodes.md").write_text(
-        "# Live-chain episodes for labeling\n\n" + header + "\n".join(live), "utf-8"
+    (out_dir / f"{args.kind}_episodes.md").write_text(
+        f"# {args.kind} chain episodes for labeling\n\n" + header + "\n".join(live), "utf-8"
     )
-    (out_dir / "flagged_episodes.md").write_text(
+    (out_dir / f"{prefix}flagged_episodes.md").write_text(
         "# Narrative-flagged episodes for review\n\n" + header + "\n".join(flagged), "utf-8"
     )
-    print(f"live episodes: {len(live)} · flagged episodes: {len(flagged)} → {out_dir}")
+    print(f"{args.kind} episodes: {len(live)} · flagged episodes: {len(flagged)} → {out_dir}")
     return 0
 
 
