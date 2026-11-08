@@ -185,6 +185,7 @@ def run_episode(
                     "requested_model": requested_model,
                     "enforcement": config.enforcement,
                     "chain": config.chain,
+                    "chain_variant": config.extra.get("chain_variant"),
                 },
             )
             handoff_text = deps.build_handoff(world, condition, wording_variant, service)
@@ -255,16 +256,18 @@ def _git_commit() -> str | None:
 
 
 def _build_manifest(config: RunConfig, run_id: str) -> dict[str, Any]:
-    policy_path = publisher_policy_path()
-    policy_sha = (
-        sha256_hex(policy_path.read_text(encoding="utf-8")) if policy_path.exists() else None
-    )
+    draft = publisher_policy_path().parent  # protocol/draft/: every prompt and template
+    prompt_hashes = {
+        q.relative_to(draft).as_posix(): sha256_hex(q.read_bytes())
+        for q in sorted(draft.rglob("*"))
+        if q.is_file() and q.name != ".gitkeep"
+    }
     return {
         "run_id": run_id,
         "freeze_id": config.freeze_id,
         "git_commit": _git_commit(),
         "config": config.to_dict(),
-        "prompt_sha256": {"publisher_policy.md": policy_sha},
+        "prompt_sha256": prompt_hashes,
         "model_ids": {"requested": config.model_id},
         "seeds": list(config.seeds),
         "retry_policy": {"retry_max": config.retry_max, "retried_on": "infra_error"},

@@ -204,6 +204,7 @@ def test_cmd_run_live_refused_when_ledger_unavailable(tmp_path, monkeypatch, cap
     auth_dir = write_auth(tmp_path, "b1", "live")
     monkeypatch.setenv(cli.AUTH_ROOT_ENV, str(auth_dir))
     monkeypatch.setenv("ACTOR_MODEL_ID", "claude-haiku-4-5-20251001")
+    monkeypatch.setenv("AIV_SPEND_ROOT", str(tmp_path / "spend"))
     monkeypatch.setattr(cli, "_build_live_ledger", lambda partition: None)
     code = cli.main(
         [
@@ -220,7 +221,7 @@ def test_cmd_run_live_refused_when_ledger_unavailable(tmp_path, monkeypatch, cap
         ]
     )
     assert code == 2
-    assert "ledger" in capsys.readouterr().err.lower()
+    assert "ledger is unavailable" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------------------------
@@ -332,3 +333,85 @@ def test_cmd_run_mock_mixed_policy_assigns_by_seed_and_condition(monkeypatch):
     adapter1 = captured["adapter_factory"](spec1, world)
     # same (seed, condition) -> same policy regardless of approval_state
     assert adapter0.policy == adapter1.policy
+
+
+# ---------------------------------------------------------------------------------------------
+# Lead integration: spend root, freeze requirement, chain mode
+# ---------------------------------------------------------------------------------------------
+
+LIVE_ARGS = ["run", "--mode", "live", "--seeds", "0", "--confirm-spend", "--batch", "b1"]
+
+
+def test_live_refused_without_shared_spend_root(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv(cli.AUTH_ROOT_ENV, str(write_auth(tmp_path, "b1", "pilot")))
+    monkeypatch.setenv("ACTOR_MODEL_ID", "m")
+    monkeypatch.delenv("AIV_SPEND_ROOT", raising=False)
+    assert cli.main([*LIVE_ARGS, "--partition", "pilot"]) == 2
+    assert "AIV_SPEND_ROOT" in capsys.readouterr().err
+
+
+def test_live_main_refused_without_freeze_id(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv(cli.AUTH_ROOT_ENV, str(write_auth(tmp_path, "b1", "main")))
+    monkeypatch.setenv("ACTOR_MODEL_ID", "m")
+    monkeypatch.setenv("AIV_SPEND_ROOT", str(tmp_path / "spend"))
+    monkeypatch.setattr(cli, "_build_live_ledger", lambda partition: object())
+    monkeypatch.setattr(cli, "make_live_adapter_factory", _no_live)
+    assert cli.main([*LIVE_ARGS, "--partition", "main"]) == 2
+    assert "require --freeze-id" in capsys.readouterr().err
+
+
+def _no_live(*a, **k):
+    raise AssertionError("a live client must never be built in tests")
+
+
+def test_unknown_freeze_id_refused(capsys):
+    code = cli.main(["run", "--partition", "mock", "--seeds", "0", "--freeze-id", "F-nope"])
+    assert code == 2
+    assert "run refused" in capsys.readouterr().err
+
+
+def test_freeze_mismatch_detected(tmp_path):
+    from aiv import freeze
+
+    draft = tmp_path / "protocol" / "draft"
+    draft.mkdir(parents=True)
+    (draft / "p.md").write_text("v1\n", encoding="utf-8")
+    fid = freeze.create(tmp_path, {})
+    assert cli.check_frozen_matches_draft(tmp_path, fid) is None
+    (draft / "p.md").write_text("v2\n", encoding="utf-8")
+    assert "differs" in cli.check_frozen_matches_draft(tmp_path, fid)
+
+
+def test_chain_rejects_b_d(capsys):
+    code = cli.main(
+        ["run", "--partition", "mock", "--seeds", "0", "--chain", "ordinary", "--conditions", "AB"]
+    )
+    assert code == 2
+
+
+@pytest.mark.parametrize("variant", ["ordinary", "adversarial"])
+def test_mock_chain_run_end_to_end(tmp_path, monkeypatch, variant):
+    from aiv.contract import EventType, RunConfig
+    from aiv.recorder import read_events, recorder_key, verify_run
+    from aiv.runtime import run_batch
+    from aiv.scoring import read_scored
+
+    # Mock mode only: the real batch runner is safe (no client is ever constructed).
+    monkeypatch.setattr(cli, "run_batch", run_batch)
+    monkeypatch.setattr(cli, "RunConfig", lambda **kw: RunConfig(**kw, runs_root=str(tmp_path)))
+    code = cli.main(["run", "--partition", "mock", "--seeds", "0-1", "--chain", variant])
+    assert code == 0
+    (run_dir,) = (tmp_path / "mock").iterdir()
+    assert verify_run(run_dir, recorder_key("mock")[0]) == []
+    scored = read_scored(run_dir)
+    assert len(scored) == 2 * 2 * 2 and all(s.chain for s in scored)
+    events = read_events(run_dir)
+    workers = [
+        e.payload["text"]
+        for e in events
+        if e.type == EventType.AGENT_MESSAGE and e.payload["role"] == "worker"
+    ]
+    adversarial = variant == "adversarial"
+    assert workers and all(("approved" in text) == adversarial for text in workers)
+    starts = [e for e in events if e.type == EventType.EPISODE_START]
+    assert {e.payload["chain_variant"] for e in starts} == {variant}
