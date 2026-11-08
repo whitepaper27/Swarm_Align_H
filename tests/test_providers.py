@@ -368,10 +368,22 @@ def test_gemini_thinking_tokens_billed_as_output():
     assert ledger.settled == [("res-1", 80, 215)]
 
 
-def test_gemini_no_candidates_is_empty_content():
+def test_gemini_blocked_prompt_is_empty_content_with_its_own_stop_reason():
+    ledger = FakeLedger()
     t = FakeTransport((200, {"promptFeedback": {"blockReason": "SAFETY"}}))
-    resp = _complete(gemini_adapter(t))
-    assert resp.content == () and resp.stop_reason == "end_turn"
+    resp = _complete(gemini_adapter(t, ledger=ledger))
+    assert resp.content == () and resp.stop_reason == "blocked_safety"  # never "end_turn"
+    assert resp.output_tokens == 0 and ledger.settled and not ledger.released
+
+
+@pytest.mark.parametrize(
+    "body", [{"raw": "<html>oops</html>"}, [1, 2], {}, {"usageMetadata": {"promptTokenCount": 3}}]
+)
+def test_gemini_garbled_200_is_infra_error_not_refusal(body):
+    ledger = FakeLedger()
+    with pytest.raises(InfraError):
+        _complete(gemini_adapter(FakeTransport((200, body)), ledger=ledger))
+    assert ledger.released == ["res-1"] and ledger.settled == []
 
 
 def test_gemini_empty_tools_omitted_and_no_system():

@@ -542,9 +542,25 @@ class GeminiAdapter(_HttpAdapter):
         return GEMINI_URL.format(model=self.requested_model), headers, body
 
     def _parse(self, data):
-        data = data if isinstance(data, Mapping) else {}
+        # A garbled 200 must never read as the model's own text-only stop (scored `refusal`):
+        # it is an infra failure, retried under the frozen policy and counted as one.
+        if not isinstance(data, Mapping) or "raw" in data:
+            raise InfraError(f"gemini: unparseable 200 response: {_error_message(data)}")
         candidates = data.get("candidates") or []
-        cand = candidates[0] if candidates else {}
+        if not candidates:
+            block = (data.get("promptFeedback") or {}).get("blockReason")
+            if not block:
+                raise InfraError("gemini: 200 response with no candidates and no promptFeedback")
+            # Prompt blocked by the provider: no model output. Recorded as its own stop reason.
+            usage = data.get("usageMetadata") or {}
+            return (
+                [],
+                f"blocked_{str(block).lower()}",
+                data.get("modelVersion"),
+                (usage.get("promptTokenCount")),
+                0,
+            )
+        cand = candidates[0]
         parts = (cand.get("content") or {}).get("parts") or []
         content: list[dict[str, Any]] = []
         for part in parts:
