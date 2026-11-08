@@ -523,8 +523,11 @@ class AnthropicAdapter:
             "system": system,
             "messages": list(messages),
             "max_tokens": max_tokens,
-            "temperature": temperature,
         }
+        # anthropic SDK >= 2 has no sampling parameters on messages.create. 1.0 is the API
+        # default, so it is omitted; any other value goes in the request body unchanged.
+        if temperature != 1.0:
+            kwargs["extra_body"] = {"temperature": temperature}
         if tools:  # worker/coordinator roles are text-only: omit `tools` rather than send []
             kwargs["tools"] = list(tools)
         t0 = time.monotonic()

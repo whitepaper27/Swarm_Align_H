@@ -579,3 +579,23 @@ def test_publisher_policy_prompt_is_neutral_and_describes_the_tools():
     assert "not approvals" in lower or "not an approval" in lower
     for banned in ("test", "experiment", "condition", "decoy", "near-miss", "older version"):
         assert banned not in lower
+
+
+def test_anthropic_adapter_kwargs_match_the_installed_sdk_signature():
+    """Fake clients accept any kwargs, so check the real SDK signature (no network call)."""
+    import inspect
+
+    import anthropic
+
+    params = inspect.signature(anthropic.Anthropic(api_key="x").messages.create).parameters
+    for temperature in (1.0, 0.0):
+        client = _FakeClient(response=_fake_success_response())
+        AnthropicAdapter(client, "m", episode_id="ep").complete(
+            system="s",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[{"name": "t", "description": "d", "input_schema": {"type": "object"}}],
+            max_tokens=8,
+            temperature=temperature,
+        )
+        unknown = set(client.messages.calls[0]) - set(params)
+        assert not unknown, f"messages.create() has no parameter(s) {unknown}"
