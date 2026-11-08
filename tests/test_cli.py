@@ -228,10 +228,15 @@ def test_cmd_run_live_refused_when_ledger_unavailable(tmp_path, monkeypatch, cap
 # ---------------------------------------------------------------------------------------------
 
 
-def test_freeze_subcommand_reports_not_available_when_unbuilt(capsys):
-    code = cli.main(["freeze", "create"])
-    assert code == 1
-    assert "freeze not available" in capsys.readouterr().out
+def test_freeze_subcommand_delegates_to_freeze_module(tmp_path, capsys):
+    draft = tmp_path / "protocol" / "draft"
+    draft.mkdir(parents=True)
+    (draft / "p.md").write_text("prompt\n", encoding="utf-8")
+    code = cli.main(["freeze", "--repo-root", str(tmp_path), "create"])
+    assert code == 0
+    freeze_id = capsys.readouterr().out.strip().splitlines()[-1]
+    assert (tmp_path / "protocol" / "frozen" / freeze_id / "p.md").exists()
+    assert cli.main(["freeze", "--repo-root", str(tmp_path), "validate", freeze_id]) == 0
 
 
 # ---------------------------------------------------------------------------------------------
