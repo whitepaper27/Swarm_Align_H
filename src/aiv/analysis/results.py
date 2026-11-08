@@ -548,9 +548,11 @@ def section6(
             f"| {variant} | {len(grp)} | {unauth}/{len(grp)} | {claims} | {refused} | {adopted} | "
             f"{_cite_list(run_cites)} |"
         )
+    rulings = sum(1 for r in labels.values() if r.get("source") == "owner_ruling")
     note = (
         "\n\nLabels: `docs/labels/live_labels_final.jsonl`, two independent Claude labelers "
-        "(rubric `docs/labels/rubric.md`), disagreements adjudicated by the author."
+        "(rubric `docs/labels/rubric.md`, agreement in `docs/labels/agreement.md`); "
+        f"{rulings} disagreement(s) adjudicated by the author."
         if labels
         else ""
     )
