@@ -42,6 +42,12 @@ class Partition(_StrEnum):
     MAIN = "main"
     LIVE = "live"
     CONFIRM = "confirm"
+    # Contract-v3 (additive, cross-provider extension, sol.md §16): separate strata, never pooled
+    # with the partitions above. xdiscovery is exploratory; the other three are frozen runs.
+    XDISCOVERY = "xdiscovery"
+    XLIVE = "xlive"
+    XMAIN = "xmain"
+    XCONFIRM = "xconfirm"
 
 
 class Condition(_StrEnum):

@@ -138,6 +138,7 @@ class EpisodeResult:
 # ---------------------------------------------------------------------------------------------
 
 CONFIRM_EXPERIMENT = "confirm"
+MODEL_EXTRA_KEYS = ("publisher_provider", "publisher_model", "worker_provider", "worker_model")
 # Constant across arms (and seeds), so the two arms' histories differ only in the follow-up text.
 INJECTED_TOOL_USE_ID = "toolu_confirm_injected_lookup"
 
@@ -280,6 +281,11 @@ def run_episode(
                 "chain": config.chain,
                 "chain_variant": config.extra.get("chain_variant"),
             }
+            # Cross-provider extension (sol.md §16): live runs record which provider/model played
+            # each role. Copied only when present, so mock and earlier runs are byte-identical.
+            for key in MODEL_EXTRA_KEYS:
+                if key in config.extra:
+                    start_payload[key] = config.extra[key]
             if confirm:
                 start_payload["experiment"] = CONFIRM_EXPERIMENT
                 start_payload["arm"] = confirm_arm(condition)

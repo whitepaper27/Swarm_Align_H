@@ -174,3 +174,33 @@ arms' histories differ only in the follow-up text; the injected lookup counts as
 `renewed_exact_lookups` (last field, default 0, so contract-v1 `scored.jsonl` still loads): the number of exact lookups
 of the requested tuple after the first one, a pure function of events. Section 7 reports it as "renewed exact
 verification" (> 0) per arm next to unauthorized commits, with a seed-paired exact McNemar on `unauthorized_commit`.
+
+## Cross-provider infrastructure (X1; contract-v3, additive; Sun Nov 8, before any cross-provider data)
+
+Implements the plumbing for sol.md §16. No outcome-bearing logic changes: handoffs, policy, scoring and §1–§9 are untouched.
+- **Partitions** `xdiscovery`, `xlive`, `xmain`, `xconfirm`. Live `xlive`/`xmain`/`xconfirm` need `--freeze-id`, as their
+  analogues do. `xmain` must match the freeze's seeds, conditions and states, like `main`. `--experiment confirm` runs in
+  `confirm` or `xconfirm`. Caps come from `SPEND_CAP_<PARTITION>_USD`.
+- **Pricing per call's model.** `Ledger.reserve(..., model=)` uses `PRICE_<KEY>_INPUT/OUTPUT_PER_MTOK`, with `<KEY>` = the
+  model id uppercased and non-alphanumerics replaced by `_`. The generic `PRICE_*_PER_MTOK` applies only to `model=None` or
+  `ACTOR_MODEL_ID`. Any other unpriced model gets `SpendRefused`. A `Ledger` built directly with no pricing context keeps the
+  original single-price behavior; `from_env`, the production path, is always strict.
+- **Adapters** `OpenAIAdapter` and `GeminiAdapter` (`aiv.agents.providers`, stdlib `urllib`). Both translate the
+  Anthropic-shaped history both ways and map 429/5xx/network errors to `InfraError` and other 4xx to `RuntimeError`.
+  - OpenAI omits `temperature` at 1.0 (GPT-5.x reasoning models reject a non-default one) and uses `max_completion_tokens`.
+  - Gemini echoes `thoughtSignature` and call ids. The injected T13 lookup gets the placeholder signature
+    `skip_thought_signature_validator`; this is unverified offline, so check it on the first smoke episode. Gemini output
+    tokens = `candidatesTokenCount + thoughtsTokenCount`, because thinking is billed as output.
+- **CLI.** New flags `--publisher-provider/--publisher-model` and, for chain runs only, `--worker-provider/--worker-model`.
+  The chain coordinator stays anthropic `ACTOR_MODEL_ID`.
+  - In live mode, anything other than anthropic `ACTOR_MODEL_ID` runs only in an x-partition, so §1–§7 can't be pooled.
+    openai/gemini need an explicit model and their key (`OPENAI_API_KEY`/`GEMINI_API_KEY`).
+  - The providers and models are recorded in `config.extra` (manifest) and in `episode.start`. Mock mode is unchanged.
+  - `AIV_DOTENV_OVERRIDE=K1,K2` lets `.env` override those shell variables. The default still never overrides.
+- **RESULTS §10** renders only when an x-partition is requested, so §1–§9 stay byte-identical. Each table is one stratum:
+  - `xmain`/`xconfirm`: one stratum per publisher model (scored `requested_model`);
+  - `xlive`: one stratum per (worker model, chain variant) from the manifest.
+
+  Final-attempt selection runs per stratum, because `CellKey` has no model. `mock-` runs in x-partitions verify with the
+  mock key, like `confirm`, and are labeled MOCK. xlive labels (`docs/labels/xlive_labels_final.jsonl`) should carry
+  `run_id`: an id-only label shared by two runs is ambiguous and is not applied.

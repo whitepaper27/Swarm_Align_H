@@ -539,6 +539,7 @@ class AnthropicAdapter:
                 _estimate_input_tokens(system, messages),
                 max_tokens,
                 episode_id=self._episode_id,
+                model=self.requested_model,
             )
 
         kwargs: dict[str, Any] = {
@@ -588,3 +589,21 @@ class AnthropicAdapter:
             output_tokens=usage.output_tokens,
             latency_ms=latency_ms,
         )
+
+
+# Non-Anthropic live adapters (cross-provider extension, sol.md §16). Imported last: the module
+# depends only on `aiv.contract`, and re-exporting here keeps `from aiv.agents import ...` uniform.
+from aiv.agents.providers import GeminiAdapter, OpenAIAdapter  # noqa: E402
+
+__all__ = [
+    "AnthropicAdapter",
+    "GeminiAdapter",
+    "InvalidToolCall",
+    "MockAdapter",
+    "OpenAIAdapter",
+    "dispatch_tool",
+    "load_publisher_policy",
+    "mixed_policy_for",
+    "publisher_loop",
+    "publisher_policy_path",
+]

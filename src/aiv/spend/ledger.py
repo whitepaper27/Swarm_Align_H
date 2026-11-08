@@ -10,6 +10,13 @@
   total, partition or episode cap. The mock partition is refused outright: mock never charges
   the ledger.
 - `settle()` replaces the reservation with the actual usage; `release()` cancels it.
+- Per-model pricing (cross-provider extension, sol.md §16): `reserve(..., model=...)` prices the
+  call by *that call's model*: `PRICE_<KEY>_INPUT_PER_MTOK` / `PRICE_<KEY>_OUTPUT_PER_MTOK`, where
+  `<KEY>` is the model id uppercased with every non-alphanumeric replaced by `_` (e.g.
+  `gemini-3.5-flash-lite` -> `PRICE_GEMINI_3_5_FLASH_LITE_INPUT_PER_MTOK`). The generic
+  `PRICE_INPUT_PER_MTOK` / `PRICE_OUTPUT_PER_MTOK` apply only when `model` is `None` or equals
+  `ACTOR_MODEL_ID` (the original Anthropic path). Any other unpriced model -> `SpendRefused`. The
+  `Reservation` carries the model so `settle()` prices the actual usage the same way.
 - All shared state lives on disk under one root-wide lock (`<root>/.spend.lock`, a byte lock:
   `msvcrt.locking` on Windows, `fcntl.flock` elsewhere) so concurrent reservations across
   processes cannot oversubscribe a cap: `ledger.json` holds totals per partition and per
@@ -25,6 +32,7 @@ import errno
 import json
 import os
 import random
+import re
 import sys
 import time
 import uuid
@@ -64,6 +72,7 @@ class Reservation:
     input_tokens_est: int
     max_tokens: int
     created_ts: str
+    model: str | None = None  # the model this call was priced for (None = generic pricing)
 
     @property
     def cost_usd(self) -> Decimal:
@@ -198,6 +207,16 @@ def _cost_micro(tokens_in: int, tokens_out: int, price_in: Decimal, price_out: D
     return int(exact.to_integral_value(rounding=ROUND_CEILING))
 
 
+def price_key(model: str) -> str:
+    """`gemini-3.5-flash-lite` -> `GEMINI_3_5_FLASH_LITE` (the `<KEY>` in `PRICE_<KEY>_*`)."""
+    return re.sub(r"[^A-Z0-9]", "_", str(model).upper())
+
+
+def price_env_names(model: str) -> tuple[str, str]:
+    key = price_key(model)
+    return f"PRICE_{key}_INPUT_PER_MTOK", f"PRICE_{key}_OUTPUT_PER_MTOK"
+
+
 def _env_value(env: Mapping[str, str], key: str) -> str | None:
     raw = env.get(key, "")
     text = raw.strip() if raw is not None else ""
@@ -231,6 +250,8 @@ class Ledger:
         total_cap: Any,
         partition_cap: Any,
         episode_cap: Any,
+        price_env: Mapping[str, str] | None = None,
+        actor_model_id: str | None = None,
     ) -> None:
         self.root = Path(root)
         self.partition = str(partition)
@@ -239,6 +260,11 @@ class Ledger:
         self.total_cap = total_cap
         self.partition_cap = partition_cap
         self.episode_cap = episode_cap
+        # Per-model `PRICE_<KEY>_*` values. A directly constructed ledger sees none unless given,
+        # so a developer's shell `PRICE_*` variables never leak into tests.
+        self._price_env_given = price_env is not None
+        self.price_env: dict[str, str] = dict(price_env or {})
+        self.actor_model_id = actor_model_id
 
     @classmethod
     def from_env(cls, partition: Any, *, env: Mapping[str, str] | None = None) -> Ledger:
@@ -253,20 +279,64 @@ class Ledger:
             total_cap=_env_value(env, "SPEND_CAP_TOTAL_USD"),
             partition_cap=_env_value(env, f"SPEND_CAP_{name.upper()}_USD"),
             episode_cap=_env_value(env, "SPEND_CAP_EPISODE_USD"),
+            price_env={
+                k: v
+                for k, v in env.items()
+                if k.startswith("PRICE_") and k.endswith("_PER_MTOK") and v and v.strip()
+            },
+            actor_model_id=_env_value(env, "ACTOR_MODEL_ID"),
+        )
+
+    # ------------------------------------------------------------------ pricing
+
+    def prices_for(self, model: str | None) -> tuple[Decimal, Decimal]:
+        """(USD/Mtok in, USD/Mtok out) for one call's model. Raises `SpendRefused` (before any
+        disk access) if the model has no price.
+
+        Per-model `PRICE_<KEY>_INPUT/OUTPUT_PER_MTOK` (both set) wins. The generic
+        `PRICE_INPUT/OUTPUT_PER_MTOK` is the fallback only for `model is None` or
+        `model == ACTOR_MODEL_ID`. A ledger built without any pricing context (no `price_env`
+        and no `actor_model_id`: the single-model constructor the pre-extension code and tests
+        use) keeps the original behavior: one generic price for every call. `from_env`, the
+        only production constructor, always passes a `price_env`, so it is always strict.
+        """
+        if model is not None:
+            name_in, name_out = price_env_names(model)
+            val_in = _env_value(self.price_env, name_in)
+            val_out = _env_value(self.price_env, name_out)
+            if val_in is not None and val_out is not None:
+                return _require_price(val_in, name_in), _require_price(val_out, name_out)
+            single_model = self._price_env_given is False and self.actor_model_id is None
+            if model != self.actor_model_id and not single_model:
+                missing = name_in if val_in is None else name_out
+                raise SpendRefused(
+                    f"{missing} is not set for model {model!r}; refusing to reserve (the generic "
+                    "PRICE_INPUT/OUTPUT_PER_MTOK apply only to ACTOR_MODEL_ID)"
+                )
+        return (
+            _require_price(self.price_in_per_mtok, "PRICE_INPUT_PER_MTOK"),
+            _require_price(self.price_out_per_mtok, "PRICE_OUTPUT_PER_MTOK"),
         )
 
     # ------------------------------------------------------------------ calls
 
-    def reserve(self, input_tokens_est: int, max_tokens: int, *, episode_id: str) -> Reservation:
-        """Reserve `input_tokens_est * price_in + max_tokens * price_out` (rounded up).
+    def reserve(
+        self,
+        input_tokens_est: int,
+        max_tokens: int,
+        *,
+        episode_id: str,
+        model: str | None = None,
+    ) -> Reservation:
+        """Reserve `input_tokens_est * price_in + max_tokens * price_out` (rounded up), priced
+        for `model` (see `prices_for`).
 
         Raises `SpendRefused` without touching disk if pricing is unknown, the partition is
         `mock` (never charged), or the reservation would exceed any cap.
         """
         if self.partition == MOCK_PARTITION:
             raise SpendRefused("the mock partition is never charged; it never uses the ledger")
-        price_in = _require_price(self.price_in_per_mtok, "PRICE_INPUT_PER_MTOK")
-        price_out = _require_price(self.price_out_per_mtok, "PRICE_OUTPUT_PER_MTOK")
+        price_in, price_out = self.prices_for(model)
         total_cap_micro = _require_cap_micro(self.total_cap, "SPEND_CAP_TOTAL_USD")
         partition_cap_micro = _require_cap_micro(
             self.partition_cap, f"SPEND_CAP_{self.partition.upper()}_USD"
@@ -323,6 +393,7 @@ class Ledger:
                     "cost_micro": cost_micro,
                     "input_tokens_est": input_tokens_est,
                     "max_tokens": max_tokens,
+                    "model": model,
                 },
             )
         return Reservation(
@@ -333,12 +404,13 @@ class Ledger:
             input_tokens_est=input_tokens_est,
             max_tokens=max_tokens,
             created_ts=created,
+            model=model,
         )
 
     def settle(self, res: Reservation, input_tokens: int, output_tokens: int) -> int:
-        """Replace the reservation with the actual cost. Returns the actual cost in micro-USD."""
-        price_in = _require_price(self.price_in_per_mtok, "PRICE_INPUT_PER_MTOK")
-        price_out = _require_price(self.price_out_per_mtok, "PRICE_OUTPUT_PER_MTOK")
+        """Replace the reservation with the actual cost, priced for the reservation's model.
+        Returns the actual cost in micro-USD."""
+        price_in, price_out = self.prices_for(res.model)
         actual_micro = _cost_micro(input_tokens, output_tokens, price_in, price_out)
         delta = actual_micro - res.cost_micro
         with self._locked() as state:
